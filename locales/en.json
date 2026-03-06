@@ -139,6 +139,38 @@
 	"global.driver_desc": "Driver. Sometimes we just need to use the word \"driver\", so don't think about this too much ;)",
 	"global.phone": "☎️ %s",
 	"global.phone_desc": "Message to show phone number, translation is not required.",
+
+	"passenger-request-destination-location.provide_destination_location": "📍 For automatic fare calculation, please share the GPS location of your destination (or type its address). You can also skip this step.",
+	"passenger-request-destination-location.provide_destination_location_desc": "We ask the passenger for destination coordinates to calculate the fare automatically.",
+	"passenger-request-destination-location.skip": "⏭️ Skip — I'll set my own price",
+	"passenger-request-destination-location.skip_desc": "Button text to skip automatic fare calculation and enter price manually.",
+
+	"passenger-confirm-fare.fare_title": "💰 Estimated fare:",
+	"passenger-confirm-fare.fare_title_desc": "Title shown before the fare breakdown.",
+	"passenger-confirm-fare.distance_line": "📏 Distance: %s",
+	"passenger-confirm-fare.distance_line_desc": "Shows the trip distance.",
+	"passenger-confirm-fare.base_fare_line": "🏁 Base fare: %s",
+	"passenger-confirm-fare.base_fare_line_desc": "Shows the base fare component.",
+	"passenger-confirm-fare.distance_fare_line": "📐 Distance fare: %s",
+	"passenger-confirm-fare.distance_fare_line_desc": "Shows the per-distance fare component.",
+	"passenger-confirm-fare.vehicle_multiplier_line": "🚗 Vehicle adjustment: %s",
+	"passenger-confirm-fare.vehicle_multiplier_line_desc": "Shows the vehicle type multiplier if different from 1.0.",
+	"passenger-confirm-fare.surge_line": "⚡ Surge pricing: %s",
+	"passenger-confirm-fare.surge_line_desc": "Shows the surge multiplier if active.",
+	"passenger-confirm-fare.time_line": "🕐 Time adjustment: %s",
+	"passenger-confirm-fare.time_line_desc": "Shows the time-of-day multiplier if active.",
+	"passenger-confirm-fare.total_line": "💵 Total: %s",
+	"passenger-confirm-fare.total_line_desc": "Shows the total calculated fare.",
+	"passenger-confirm-fare.accept": "✅ Accept this fare",
+	"passenger-confirm-fare.accept_desc": "Button to accept the auto-calculated fare and submit the order.",
+	"passenger-confirm-fare.custom_price": "✏️ Enter my own price",
+	"passenger-confirm-fare.custom_price_desc": "Button to skip the calculated fare and type a custom price instead.",
+	"passenger-confirm-fare.on_timeout": "Seems like you've been waiting for a while? Sorry about that. If you haven't found a ride, we recommend trying again later.",
+	"passenger-confirm-fare.on_timeout_desc": "Shown when the passenger has waited too long after accepting the calculated fare.",
+
+	"driver-order-new.calculated_fare": "📊 Auto-calculated fare: %s",
+	"driver-order-new.calculated_fare_desc": "We show this message to drivers when the passenger's fare was auto-calculated based on distance.",
+
 	"__locale__": "en",
 	"__eof__": "__eof__"
 }

@@ -58,6 +58,8 @@ test('should return routes by route', t => {
   const a31 = ActionFactory.fromRoute({ route: 'update-identity', user });
   const a32 = ActionFactory.fromRoute({ route: 'confirm-locale', user });
   const a33 = ActionFactory.fromRoute({ route: 'system-reset-user', user });
+  const a34 = ActionFactory.fromRoute({ route: 'passenger-request-destination-location', user });
+  const a35 = ActionFactory.fromRoute({ route: 'passenger-confirm-fare', user });
 
   t.is(a1.type, 'select-locale');
   t.is(a2.type, 'foo');
@@ -92,6 +94,8 @@ test('should return routes by route', t => {
   t.is(a31.type, 'update-identity');
   t.is(a32.type, 'confirm-locale');
   t.is(a33.type, 'system-reset-user');
+  t.is(a34.type, 'passenger-request-destination-location');
+  t.is(a35.type, 'passenger-confirm-fare');
 });
 
 test('should have default route', t => {

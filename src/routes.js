@@ -43,6 +43,8 @@ import DriverOrderSetPrice from './actions/menu/driver/order/set-price';
 import PassengerContactDriverPrice from './actions/menu/passenger/contact/driver-price';
 import PassengerVerifyLocation from './actions/menu/passenger/verify-location';
 import PassengerVerifyCash from './actions/menu/passenger/verify-cash';
+import PassengerRequestDestinationLocation from './actions/menu/passenger/request-destination-location';
+import PassengerConfirmFare from './actions/menu/passenger/confirm-fare';
 import RequestRadius from './actions/menu/driver/request-radius';
 import ShowMessage from './actions/menu/show-message';
 import UpdateIdentity from './actions/menu/update-identity';
@@ -110,6 +112,11 @@ const routes = {
   'passenger-contact-driver-price': (...args) => new PassengerContactDriverPrice(...args),
   'passenger-verify-location': (...args) => new PassengerVerifyLocation(...args),
   'passenger-verify-cash': (...args) => new PassengerVerifyCash(...args),
+  'passenger-request-destination-location': (options) => new ParsedLocation(
+    options,
+    new LookupAddress(options, new PassengerRequestDestinationLocation(options))
+  ),
+  'passenger-confirm-fare': (...args) => new PassengerConfirmFare(...args),
   'driver-request-radius': (...args) => new RequestRadius(...args),
   'show-message': (...args) => new ShowMessage(...args),
   'update-identity': (...args) => new UpdateIdentity(...args),

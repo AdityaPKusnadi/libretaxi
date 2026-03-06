@@ -68,6 +68,6 @@ export default class PassengerRequestDestination extends Action {
     return new CompositeResponse()
       .add(new UserStateResponse({ destination: value }))
       .add(new TextResponse({ message: '👌 OK!' }))
-      .add(new RedirectResponse({ path: 'passenger-request-price' }));
+      .add(new RedirectResponse({ path: 'passenger-request-destination-location' }));
   }
 }

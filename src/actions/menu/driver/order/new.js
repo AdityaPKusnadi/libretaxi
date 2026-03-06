@@ -68,7 +68,7 @@ export default class DriverOrderNew extends Action {
     const inlineValues = {}; // key-value where key is `guid`, value is `response`
     Object.keys(buttons).forEach((k) => { inlineValues[buttons[k].guid] = buttons[k].response; });
 
-    return new CompositeResponse()
+    const response = new CompositeResponse()
       .add(new InterruptPromptResponse())
       .add(new UserStateResponse({
         inlineValues: new HistoryHash(this.user.state.inlineValues).merge(inlineValues),
@@ -82,7 +82,18 @@ export default class DriverOrderNew extends Action {
         condition: new ZeroPrice(args.price),
         ok: new TextResponse({ message: this.t('price_not_set') }),
         err: new TextResponse({ message: this.t('price', args.price) }),
-      }))
+      }));
+
+    // Show auto-calculated fare breakdown when available
+    if (args.calculatedFare) {
+      response.add(new TextResponse({
+        message: this.t('calculated_fare',
+          `${args.calculatedFare.currencySymbol}${args.calculatedFare.totalFare.toFixed(2)}` +
+          ` (${args.calculatedFare.distanceDisplay})`),
+      }));
+    }
+
+    response
       .add(new TextResponse({ message: this.t('call_to_action') }))
       .add(new If({
         condition: new ZeroPrice(args.price),
@@ -103,5 +114,7 @@ export default class DriverOrderNew extends Action {
         }),
       }))
       .add(new RedirectResponse({ path: 'driver-index' }));
+
+    return response;
   }
 }

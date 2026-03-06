@@ -132,6 +132,7 @@ test.cb('should notify driver when matched', t => {
         to: 'foobar',
         price: 50,
         passengerKey: 'cli_123',
+        calculatedFare: null,
       },
       route: 'driver-order-new',
     }));
