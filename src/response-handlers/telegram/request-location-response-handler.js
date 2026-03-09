@@ -42,11 +42,20 @@ export default class RequestLocationResponseHandler extends ResponseHandler {
   call() {
     const message = this.response.message || 'Send location by clicking the button below';
     const buttonText = this.response.buttonText || 'Send location';
+    const keyboard = [[{ text: buttonText, request_location: true }]];
+
+    // Append any extra rows (e.g. a "Skip" button) to the same keyboard
+    if (this.response.extraRows && this.response.extraRows.length) {
+      for (const row of this.response.extraRows) {
+        keyboard.push(Array.from(row, o => (typeof o === 'string' ? o : o.label)));
+      }
+    }
+
     this.api.sendMessage(this.user.platformId, message,
       {
         disable_notification: true,
         reply_markup: JSON.stringify({
-          keyboard: [[{ text: buttonText, request_location: true }]],
+          keyboard,
           one_time_keyboard: true,
         }),
       }).catch(telegramErrors);

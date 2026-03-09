@@ -39,13 +39,26 @@ test('should return composite response on get', t => {
   t.is(response.type, 'composite');
   t.is(response.responses[0].type, 'text');
   t.truthy(response.responses[0].message.length > 0);
-  t.is(response.responses[1].type, 'options');
-  t.is(response.responses[2].type, 'request-location');
+  t.is(response.responses[1].type, 'request-location');
+  t.truthy(response.responses[1].extraRows);
+  t.is(response.responses[1].extraRows.length, 1);
 });
 
 test('should redirect to request-price when skipped', t => {
   const action = new PassengerRequestDestinationLocation({ i18n, user });
   const response = action.post('skip');
+  t.is(response.type, 'composite');
+  t.is(response.responses[0].type, 'text');
+  t.is(response.responses[0].message, '👌 OK!');
+  t.is(response.responses[1].type, 'redirect');
+  t.is(response.responses[1].path, 'passenger-request-price');
+});
+
+test('should redirect to request-price when skip label text is sent', t => {
+  const action = new PassengerRequestDestinationLocation({ i18n, user });
+  // On Telegram the full button label text is sent, not just 'skip'
+  const skipLabel = action.t('skip');
+  const response = action.post(skipLabel);
   t.is(response.type, 'composite');
   t.is(response.responses[0].type, 'text');
   t.is(response.responses[0].message, '👌 OK!');

@@ -21,11 +21,9 @@ import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
 import RedirectResponse from '../../../responses/redirect-response';
 import RequestLocationResponse from '../../../responses/request-location-response';
-import OptionsResponse from '../../../responses/options-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import If from '../../../responses/if-response';
 import Location from '../../../conditions/location';
-import Equals from '../../../conditions/equals';
 import ErrorResponse from '../../../responses/error-response';
 
 /**
@@ -57,13 +55,12 @@ export default class PassengerRequestDestinationLocation extends Action {
   get() {
     return new CompositeResponse()
       .add(new TextResponse({ message: this.t('provide_destination_location') }))
-      .add(new OptionsResponse({
-        rows: [
-          [{ label: this.t('skip'), value: 'skip' }],
+      .add(new RequestLocationResponse({
+        buttonText: this.gt('location_button_text'),
+        extraRows: [
+          [{ label: this.t('skip') }],
         ],
-        defaultMessage: this.gt('default_options_message'),
-      }))
-      .add(new RequestLocationResponse({ buttonText: this.gt('location_button_text') }));
+      }));
   }
 
   /**
@@ -73,8 +70,11 @@ export default class PassengerRequestDestinationLocation extends Action {
    * @return {CompositeResponse|If}
    */
   post(value) {
-    // User chose to skip → go to manual price entry
-    if (value === 'skip') {
+    // User chose to skip → go to manual price entry.
+    // On Telegram, the keyboard button sends the full label text (not a value),
+    // so we match against both the old 'skip' value and the localised label.
+    const skipLabel = this.t('skip');
+    if (value === 'skip' || value === skipLabel) {
       return new CompositeResponse()
         .add(new TextResponse({ message: '👌 OK!' }))
         .add(new RedirectResponse({ path: 'passenger-request-price' }));

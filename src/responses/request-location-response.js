@@ -36,6 +36,8 @@ export default class RequestLocationResponse extends Response {
    * platform-specific.
    * @param {string} options.buttonText - (optional) text on the button for asking location,
    * platform-specific.
+   * @param {Array} options.extraRows - (optional) additional keyboard rows to display alongside
+   * the location button. Each row is an array of `{label}` objects.
    */
   constructor(options) {
     super({ type: 'request-location' });
