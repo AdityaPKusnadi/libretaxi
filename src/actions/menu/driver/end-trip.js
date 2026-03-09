@@ -56,18 +56,30 @@ export default class DriverEndTrip extends Action {
 
     const rateDesc = finalFare.rateDescription || `First 3.0 km = LKR 300, then LKR 100/km`;
 
-    const summaryLines = [];
-    summaryLines.push('✅ Connect — Trip Completed!');
-    summaryLines.push('');
-    summaryLines.push(`👤 Rider: ${riderName}`);
-    summaryLines.push(`🚘 Driver: ${driverUsername}`);
-    summaryLines.push(`📏 Distance: ${distanceKm} km`);
-    summaryLines.push(`💵 Rate: ${rateDesc}`);
-    summaryLines.push(`💰 Total Fare: ${finalFare.currencySymbol || 'LKR '}${finalFare.totalFare || 0}`);
-    summaryLines.push('');
-    summaryLines.push('Thank you for using Connect!');
+    const passengerSummaryLines = [];
+    passengerSummaryLines.push('✅ Connect — Trip Completed!');
+    passengerSummaryLines.push('');
+    passengerSummaryLines.push(`👤 Rider: ${riderName}`);
+    passengerSummaryLines.push(`🚘 Driver: ${driverPhone}`);
+    passengerSummaryLines.push(`📏 Distance: ${distanceKm} km`);
+    passengerSummaryLines.push(`💵 Rate: ${rateDesc}`);
+    passengerSummaryLines.push(`💰 Total Fare: ${finalFare.currencySymbol || 'LKR '}${finalFare.totalFare || 0}`);
+    passengerSummaryLines.push('');
+    passengerSummaryLines.push('Thank you for using Connect!');
 
-    const summaryMessage = summaryLines.join('\n');
+    const driverSummaryLines = [];
+    driverSummaryLines.push('✅ Connect — Trip Completed!');
+    driverSummaryLines.push('');
+    driverSummaryLines.push(`👤 Rider: ${riderName}`);
+    driverSummaryLines.push(`🚘 Driver: ${driverUsername}`);
+    driverSummaryLines.push(`📏 Distance: ${distanceKm} km`);
+    driverSummaryLines.push(`💵 Rate: ${rateDesc}`);
+    driverSummaryLines.push(`💰 Total Fare: ${finalFare.currencySymbol || 'LKR '}${finalFare.totalFare || 0}`);
+    driverSummaryLines.push('');
+    driverSummaryLines.push('Thank you for using Connect!');
+
+    const passengerSummaryMessage = passengerSummaryLines.join('\n');
+    const driverSummaryMessage = driverSummaryLines.join('\n');
 
     const response = new CompositeResponse();
 
@@ -78,7 +90,7 @@ export default class DriverEndTrip extends Action {
       tripFare: finalFare.totalFare,
     }));
 
-    response.add(new TextResponse({ message: summaryMessage }));
+    response.add(new TextResponse({ message: driverSummaryMessage }));
 
     if (order.passengerKey) {
       response.add(new CallActionResponse({
@@ -86,7 +98,7 @@ export default class DriverEndTrip extends Action {
         route: 'show-message',
         arg: {
           expectedState: {},
-          message: summaryMessage,
+          message: passengerSummaryMessage,
           path: 'select-user-type',
         },
       }));

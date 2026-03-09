@@ -22,9 +22,11 @@ import TextResponse from '../../../responses/text-response';
 import OptionsResponse from '../../../responses/options-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import RedirectResponse from '../../../responses/redirect-response';
+import CallActionResponse from '../../../responses/call-action-response';
 import MapResponse from '../../../responses/map-response';
 import If from '../../../responses/if-response';
 import Equals from '../../../conditions/equals';
+import NotIn from '../../../conditions/not-in';
 
 export default class DriverAcceptRide extends Action {
 
@@ -37,8 +39,26 @@ export default class DriverAcceptRide extends Action {
       // Direct call from Accept inline button: update the local state manually
       // so get() can read it, and issue a UserStateResponse to persist it.
       this.user.state.currentOrder = args;
+      
+      const distanceKm = args.calculatedFare ? args.calculatedFare.distanceKm : 'N/A';
+      const fareFormat = args.calculatedFare ? `${args.calculatedFare.currencySymbol || 'LKR '}${args.calculatedFare.totalFare}` : 'N/A';
+      const rideNumDisplay = args.rideNum ? args.rideNum : '##';
+      
       return new CompositeResponse()
-        .add(new UserStateResponse({ currentOrder: args }))
+        .add(new CallActionResponse({
+          userKey: args.passengerKey,
+          route: 'passenger-ride-accepted',
+          arg: {
+            distanceKm,
+            fareFormat,
+            rideNumDisplay,
+            driverPhone: this.user.state.phone || 'N/A',
+          },
+        }))
+        .add(new UserStateResponse({ 
+          currentOrder: args,
+          menuLocation: 'driver-accept-ride'
+        }))
         .add(this.get());
     }
     // Execution from normal user input
@@ -85,12 +105,18 @@ export default class DriverAcceptRide extends Action {
   }
 
   post(value) {
+    // If the value contains 'Start Trip' or 'start-trip' anywhere in the string, consider it a match
+    const isStartTrip = (value && typeof value === 'string' && 
+                         (value.includes('start-trip') || value.includes('Start Trip')));
+
+    if (isStartTrip) {
+      return new CompositeResponse()
+        .add(new TextResponse({ message: '👌 OK!' }))
+        .add(new RedirectResponse({ path: 'driver-start-trip' }));
+    }
+
+    // Default fallback: Redraw the UI
     return new CompositeResponse()
-      .add(new If({
-        condition: new Equals(value, 'start-trip'),
-        ok: new CompositeResponse()
-          .add(new TextResponse({ message: '👌 OK!' }))
-          .add(new RedirectResponse({ path: 'driver-start-trip' })),
-      }));
+      .add(new RedirectResponse({ path: 'driver-accept-ride' }));
   }
 }

@@ -49,6 +49,7 @@ export default class DriverOrderNew extends Action {
         destinationLocation: args.destinationLocation || null,
         calculatedFare: args.calculatedFare || null,
         passengerDestination: args.to || null,
+        rideNum: args.rideNum || null,
       },
     });
 

@@ -38,6 +38,14 @@ export default class PassengerConfirmFare extends Action {
   }
 
   get() {
+    return this._submitOrder();
+  }
+
+  post(value) {
+    return new TextResponse({ message: 'Finding nearby drivers now...' });
+  }
+
+  _submitOrder() {
     const origin = this.user.state.location;
     const destination = this.user.state.destinationLocation;
 
@@ -46,54 +54,29 @@ export default class PassengerConfirmFare extends Action {
     const pickupLink = origin ? `https://maps.google.com/?q=${origin[0]},${origin[1]}` : '';
     const dropoffLink = destination ? `https://maps.google.com/?q=${destination[0]},${destination[1]}` : '';
 
-    const rideNum = Math.floor(Math.random() * 100) + 1;
+    const rideNumStr = String(Math.floor(Math.random() * 100) + 1).padStart(2, '0');
 
     const lines = [];
-    lines.push(`Ride #${String(rideNum).padStart(2, '0')} created ✅`);
+    lines.push(`Ride #${rideNumStr} created ✅`);
     lines.push('');
     lines.push(`Estimated distance: ${fare.distanceKm} km`);
     lines.push(`Estimated fare: ~${fare.currencySymbol}${fare.totalFare}`);
     lines.push('');
     lines.push(`Pickup: ${pickupLink}`);
     lines.push(`Drop-off: ${dropoffLink}`);
+    lines.push('');
+    lines.push('Finding nearby drivers now...');
 
-    return new CompositeResponse()
-      .add(new TextResponse({ message: lines.join('\n') }))
-      .add(new UserStateResponse({ calculatedFare: fare }))
-      .add(new OptionsResponse({
-        rows: [
-          [{ label: '✅ Confirm', value: 'confirm' }],
-          [{ label: '❌ Cancel', value: 'cancel' }],
-        ],
-      }));
-  }
-
-  post(value) {
-    return new CompositeResponse()
-      .add(new If({
-        condition: new Equals(value, 'confirm'),
-        ok: this._submitOrder(),
-      }))
-      .add(new If({
-        condition: new Equals(value, 'cancel'),
-        ok: new CompositeResponse()
-          .add(new TextResponse({ message: '❌ Ride cancelled.' }))
-          .add(new RedirectResponse({ path: 'select-user-type' })),
-      }))
-      .add(new If({
-        condition: new NotIn(value, ['confirm', 'cancel']),
-        ok: this.get(),
-      }));
-  }
-
-  _submitOrder() {
-    const fare = this.user.state.calculatedFare || {};
     const priceStr = String(fare.totalFare || 0);
     const orderKey = uuid.v4();
 
     return new CompositeResponse()
-      .add(new UserStateResponse({ price: priceStr }))
-      .add(new TextResponse({ message: 'Finding nearby drivers now...' }))
+      .add(new UserStateResponse({ 
+        calculatedFare: fare, 
+        price: priceStr,
+        rideNum: rideNumStr
+      }))
+      .add(new TextResponse({ message: lines.join('\n') }))
       .add(new SubmitOrderResponse({
         orderKey,
         passengerKey: this.user.userKey,
@@ -104,6 +87,7 @@ export default class PassengerConfirmFare extends Action {
         requestedVehicleType: 'car',
         calculatedFare: fare,
         destinationLocation: this.user.state.destinationLocation,
+        rideNum: rideNumStr,
       }))
       .add(new CallActionResponse({
         userKey: this.user.userKey,
@@ -118,7 +102,7 @@ export default class PassengerConfirmFare extends Action {
         },
         delay: 20 * 60 * 1000,
       }))
-      .add(new TextResponse({ message: '👌 OK!' }))
       .add(new RedirectResponse({ path: 'blank-screen' }));
   }
 }
+

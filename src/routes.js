@@ -56,6 +56,7 @@ import DriverStartTrip from './actions/menu/driver/start-trip';
 import DriverEndTrip from './actions/menu/driver/end-trip';
 import ExplainCheckins from './actions/menu/driver/explain-checkins';
 import SelectVehicleType from './actions/menu/driver/select-vehicle-type';
+import PassengerRideAccepted from './actions/menu/passenger/ride-accepted';
 
 const routes = {
   default: (...args) => new SelectUserType(...args),
@@ -109,6 +110,7 @@ const routes = {
   'driver-accept-ride': (...args) => new DriverAcceptRide(...args),
   'driver-start-trip': (...args) => new DriverStartTrip(...args),
   'driver-end-trip': (...args) => new DriverEndTrip(...args),
+  'passenger-ride-accepted': (...args) => new PassengerRideAccepted(...args),
 };
 
 export default routes;
