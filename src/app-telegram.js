@@ -26,17 +26,20 @@ import textToValue from './support/text-to-value';
 import initLocale from './support/init-locale';
 import InlineButtonCallback from './response-handlers/common/inline-button-callback';
 import Settings from '../settings';
+import handleAdminCommand from './admin/admin-command-handler';
 
 const settings = new Settings();
 const api = new TelegramBot(settings.TELEGRAM_TOKEN, {
   polling: true,
   tgfancy: { orderedSending: true },
 });
-console.log('OK telegram bot is waiting for messages...');
+console.log('OK Connect bot is waiting for messages...');
 const queue = new CaQueue();
 
 api.on('message', (msg) => {
   api.sendChatAction(msg.chat.id, 'typing').catch(() => {});
+
+  if (handleAdminCommand(api, msg)) return;
 
   const userKey = `telegram_${msg.chat.id}`;
   const something = msg.text || (msg.contact || {}).phone_number || getLocation(msg);

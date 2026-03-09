@@ -59,3 +59,6 @@ settings-production.js
 
 # Vagrant
 .vagrant
+
+REQUIREMENTS.md
+libretaxi-e949f-firebase-adminsdk-fbsvc-ef85513f00.json

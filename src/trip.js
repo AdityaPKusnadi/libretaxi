@@ -16,33 +16,20 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import fs from 'fs';
-import appRoot from 'app-root-path';
+import stateful from './stateful';
+import { mix } from 'mixwith';
+import checkNotNull from './validations/check-not-null';
 
-const CONFIG_PATH = `${appRoot.path}/fare-config.json`;
+export default class Trip extends
+  mix(stateful()).with(checkNotNull('tripId')) {
 
-const DEFAULT_CONFIG = {
-  currency: 'LKR',
-  currencySymbol: 'LKR ',
-  baseFare: 300,
-  baseKm: 3,
-  perKmRate: 100,
-  useKilometres: true,
-};
+  constructor(options) {
+    super(options);
+    Object.assign(this, options);
 
-export default function loadFareConfig() {
-  try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
-    return Object.assign({}, DEFAULT_CONFIG, parsed);
-  } catch (e) {
-    return Object.assign({}, DEFAULT_CONFIG);
+    this.stateful = {
+      key: this.tripId,
+      table: 'trips',
+    };
   }
-}
-
-export function saveFareConfig(updates) {
-  const current = loadFareConfig();
-  const merged = Object.assign({}, current, updates);
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2) + '\n', 'utf8');
-  return merged;
 }

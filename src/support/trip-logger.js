@@ -16,33 +16,23 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import fs from 'fs';
-import appRoot from 'app-root-path';
+import Settings from '../../settings';
 
-const CONFIG_PATH = `${appRoot.path}/fare-config.json`;
+const settings = new Settings();
 
-const DEFAULT_CONFIG = {
-  currency: 'LKR',
-  currencySymbol: 'LKR ',
-  baseFare: 300,
-  baseKm: 3,
-  perKmRate: 100,
-  useKilometres: true,
-};
+export default function logTrip(api, tripData) {
+  const groupId = settings.LOG_GROUP_ID;
+  if (!groupId) return;
 
-export default function loadFareConfig() {
-  try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
-    return Object.assign({}, DEFAULT_CONFIG, parsed);
-  } catch (e) {
-    return Object.assign({}, DEFAULT_CONFIG);
-  }
-}
+  const lines = [];
+  lines.push('✅ Connect — Trip Completed!');
+  lines.push('');
+  lines.push(`👤 Rider: ${tripData.riderName || 'Rider'}`);
+  lines.push(`🚘 Driver: ${tripData.driverName || 'Driver'}`);
+  lines.push(`📏 Distance: ${tripData.distance || 0} km`);
+  lines.push(`💰 Total Fare: LKR ${tripData.fare || 0}`);
+  lines.push(`📅 ${new Date().toLocaleString()}`);
 
-export function saveFareConfig(updates) {
-  const current = loadFareConfig();
-  const merged = Object.assign({}, current, updates);
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2) + '\n', 'utf8');
-  return merged;
+  api.sendMessage(groupId, lines.join('\n'), { disable_notification: false })
+    .catch((err) => console.log(`Trip log error: ${err}`));
 }

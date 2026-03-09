@@ -31,119 +31,69 @@ import Firebase from 'firebase-admin';
 import uuid from 'uuid';
 import calculateFare from '../../../fare/fare-calculator';
 
-/**
- * Passenger confirm fare menu action.
- *
- * Calculates the fare automatically from the rider's origin and destination
- * GPS coordinates, displays a clear breakdown, and lets the rider either
- * accept the calculated price or enter a custom one.
- *
- * This action reads fare-config.json on every invocation so that config
- * changes take effect immediately.
- *
- * @author LibreTaxi contributors
- * @date 2026-03-06
- * @version 1.0
- * @since 0.1.0
- */
 export default class PassengerConfirmFare extends Action {
 
-  /**
-   * Constructor.
-   */
   constructor(options) {
     super(Object.assign({ type: 'passenger-confirm-fare' }, options));
   }
 
-  /**
-   * Calculate fare and present the breakdown to the rider.
-   *
-   * @return {CompositeResponse}
-   */
   get() {
     const origin = this.user.state.location;
     const destination = this.user.state.destinationLocation;
-    const vehicleType = this.user.state.requestedVehicleType || 'car';
 
-    // Calculate fare using current config
-    const fare = calculateFare(origin, destination, { vehicleType });
+    const fare = calculateFare(origin, destination);
 
-    // Build a human-readable breakdown
+    const pickupLink = origin ? `https://maps.google.com/?q=${origin[0]},${origin[1]}` : '';
+    const dropoffLink = destination ? `https://maps.google.com/?q=${destination[0]},${destination[1]}` : '';
+
+    const rideNum = Math.floor(Math.random() * 100) + 1;
+
     const lines = [];
-    lines.push(this.t('fare_title'));
-    lines.push(this.t('distance_line', fare.distanceDisplay));
-    lines.push(this.t('base_fare_line',
-      `${fare.currencySymbol}${fare.baseFare.toFixed(2)}`));
-    lines.push(this.t('distance_fare_line',
-      `${fare.currencySymbol}${fare.distanceFare.toFixed(2)}`));
-
-    if (fare.vehicleMultiplier !== 1.0) {
-      lines.push(this.t('vehicle_multiplier_line',
-        `${vehicleType} x${fare.vehicleMultiplier}`));
-    }
-    if (fare.surgeMultiplier !== 1.0) {
-      lines.push(this.t('surge_line', `x${fare.surgeMultiplier}`));
-    }
-    if (fare.timeMultiplier !== 1.0 && fare.timeLabel) {
-      lines.push(this.t('time_line',
-        `${fare.timeLabel} x${fare.timeMultiplier}`));
-    }
-
-    lines.push('─────────────');
-    lines.push(this.t('total_line',
-      `${fare.currencySymbol}${fare.totalFare.toFixed(2)} ${fare.currency}`));
+    lines.push(`Ride #${String(rideNum).padStart(2, '0')} created ✅`);
+    lines.push('');
+    lines.push(`Estimated distance: ${fare.distanceKm} km`);
+    lines.push(`Estimated fare: ~${fare.currencySymbol}${fare.totalFare}`);
+    lines.push('');
+    lines.push(`Pickup: ${pickupLink}`);
+    lines.push(`Drop-off: ${dropoffLink}`);
 
     return new CompositeResponse()
       .add(new TextResponse({ message: lines.join('\n') }))
       .add(new UserStateResponse({ calculatedFare: fare }))
       .add(new OptionsResponse({
         rows: [
-          [{ label: this.t('accept'), value: 'accept' }],
-          [{ label: this.t('custom_price'), value: 'custom' }],
+          [{ label: '✅ Confirm', value: 'confirm' }],
+          [{ label: '❌ Cancel', value: 'cancel' }],
         ],
-        defaultMessage: this.gt('default_options_message'),
       }));
   }
 
-  /**
-   * Handle the rider's choice.
-   *
-   * @param {string} value - 'accept' | 'custom'
-   * @return {CompositeResponse|If}
-   */
   post(value) {
     return new CompositeResponse()
       .add(new If({
-        condition: new Equals(value, 'accept'),
-        ok: this._submitWithCalculatedFare(),
+        condition: new Equals(value, 'confirm'),
+        ok: this._submitOrder(),
       }))
       .add(new If({
-        condition: new Equals(value, 'custom'),
+        condition: new Equals(value, 'cancel'),
         ok: new CompositeResponse()
-          .add(new TextResponse({ message: '👌 OK!' }))
-          .add(new RedirectResponse({ path: 'passenger-request-price' })),
+          .add(new TextResponse({ message: '❌ Ride cancelled.' }))
+          .add(new RedirectResponse({ path: 'select-user-type' })),
       }))
       .add(new If({
-        condition: new NotIn(value, ['accept', 'custom']),
+        condition: new NotIn(value, ['confirm', 'cancel']),
         ok: this.get(),
       }));
   }
 
-  /**
-   * Build the response chain that submits the order using the auto-calculated fare.
-   * Mirrors the logic in PassengerRequestPrice.post() so the downstream flow
-   * is identical.
-   *
-   * @private
-   * @return {CompositeResponse}
-   */
-  _submitWithCalculatedFare() {
+  _submitOrder() {
     const fare = this.user.state.calculatedFare || {};
     const priceStr = String(fare.totalFare || 0);
     const orderKey = uuid.v4();
 
     return new CompositeResponse()
       .add(new UserStateResponse({ price: priceStr }))
+      .add(new TextResponse({ message: 'Finding nearby drivers now...' }))
       .add(new SubmitOrderResponse({
         orderKey,
         passengerKey: this.user.userKey,
@@ -151,8 +101,7 @@ export default class PassengerConfirmFare extends Action {
         passengerDestination: this.user.state.destination,
         price: priceStr,
         createdAt: Firebase.database.ServerValue.TIMESTAMP,
-        requestedVehicleType: this.user.state.requestedVehicleType,
-        // Extra fields for the fare feature
+        requestedVehicleType: 'car',
         calculatedFare: fare,
         destinationLocation: this.user.state.destinationLocation,
       }))
@@ -164,8 +113,8 @@ export default class PassengerConfirmFare extends Action {
             menuLocation: 'order-submitted',
             currentOrderKey: orderKey,
           },
-          message: this.t('on_timeout'),
-          path: 'passenger-index',
+          message: 'Seems like you\'ve been waiting for a while? Sorry about that. If you haven\'t found a ride, we recommend trying again later.',
+          path: 'select-user-type',
         },
         delay: 20 * 60 * 1000,
       }))

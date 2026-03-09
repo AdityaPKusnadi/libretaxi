@@ -27,8 +27,6 @@ import OrderSubmitted from './actions/menu/passenger/order-submitted';
 import BlankScreen from './actions/menu/blank-screen';
 import OrderCancelled from './actions/menu/passenger/order-cancelled';
 import Redirect from './actions/menu/redirect';
-import SelectVehicleType from './actions/menu/driver/select-vehicle-type';
-import ExplainCheckins from './actions/menu/driver/explain-checkins';
 import DriverRequestLocation from './actions/menu/driver/request-location';
 import ExplainWhatsNext from './actions/menu/driver/explain-whats-next';
 import DriverIndex from './actions/menu/driver/index';
@@ -53,28 +51,14 @@ import ParsedLocation from './actions/decorators/parsed-location';
 import LookupAddress from './actions/decorators/lookup-address';
 import ResetUser from './actions/menu/system/reset-user';
 import GoaInfo from './actions/decorators/info/goa';
+import DriverAcceptRide from './actions/menu/driver/accept-ride';
+import DriverStartTrip from './actions/menu/driver/start-trip';
+import DriverEndTrip from './actions/menu/driver/end-trip';
+import ExplainCheckins from './actions/menu/driver/explain-checkins';
+import SelectVehicleType from './actions/menu/driver/select-vehicle-type';
 
-/**
- * @typedef Routes
- * @desc
- *
- * List of routes
- *
- * Keeps the list of routes in application, where key is the route name,
- * and the value is menu action class .
- *
- * @author Roman Pushkin (roman.pushkin@gmail.com)
- * @date 2016-06-07
- * @version 1.2
- * @since 0.1.0
- * @example
- * import routes from './routes';
- *
- * // creates instance of default menu action class
- * const instance = new routes['default'];
- */
 const routes = {
-  default: (...args) => new SelectLocale(...args),
+  default: (...args) => new SelectUserType(...args),
   'select-locale': (...args) => new SelectLocale(...args),
   'select-user-type': (...args) => new SelectUserType(...args),
   'request-phone': (...args) => new RequestPhone(...args),
@@ -122,8 +106,9 @@ const routes = {
   'update-identity': (...args) => new UpdateIdentity(...args),
   'confirm-locale': (...args) => new ConfirmLocale(...args),
   'system-reset-user': (...args) => new ResetUser(...args),
+  'driver-accept-ride': (...args) => new DriverAcceptRide(...args),
+  'driver-start-trip': (...args) => new DriverStartTrip(...args),
+  'driver-end-trip': (...args) => new DriverEndTrip(...args),
 };
-
-// Adding more routes? update `action-factory-test.js`
 
 export default routes;

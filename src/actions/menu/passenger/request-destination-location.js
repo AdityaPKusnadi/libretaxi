@@ -20,7 +20,7 @@ import Action from '../../../action';
 import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
 import RedirectResponse from '../../../responses/redirect-response';
-import RequestLocationResponse from '../../../responses/request-location-response';
+import OptionsResponse from '../../../responses/options-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import If from '../../../responses/if-response';
 import Location from '../../../conditions/location';
@@ -54,11 +54,10 @@ export default class PassengerRequestDestinationLocation extends Action {
    */
   get() {
     return new CompositeResponse()
-      .add(new TextResponse({ message: this.t('provide_destination_location') }))
-      .add(new RequestLocationResponse({
-        buttonText: this.gt('location_button_text'),
-        extraRows: [
-          [{ label: this.t('skip') }],
+      .add(new TextResponse({ message: '🏁 Where is your destination?\n\nType the address or place name below.\nExample: Monas Jakarta, Bandung Station\n\nOr tap the 📎 attachment button → Location → search and pin your destination on the map.' }))
+      .add(new OptionsResponse({
+        rows: [
+          [{ label: this.t('skip'), value: 'skip' }],
         ],
       }));
   }
@@ -77,7 +76,7 @@ export default class PassengerRequestDestinationLocation extends Action {
     if (value === 'skip' || value === skipLabel) {
       return new CompositeResponse()
         .add(new TextResponse({ message: '👌 OK!' }))
-        .add(new RedirectResponse({ path: 'passenger-request-price' }));
+        .add(new RedirectResponse({ path: 'passenger-confirm-fare' }));
     }
 
     // Valid GPS coordinates → save and proceed to fare confirmation

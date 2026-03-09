@@ -16,120 +16,148 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import importedGetGeocoder from 'node-geocoder';
 import Action from '../../action';
 import PromiseResponse from '../../responses/promise-response';
 import CompositeResponse from '../../responses/composite-response';
 import MapResponse from '../../responses/map-response';
+import OptionsResponse from '../../responses/options-response';
+import TextResponse from '../../responses/text-response';
+import UserStateResponse from '../../responses/user-state-response';
 import Settings from '../../../settings';
 
-/**
- * Lookup address action decorator.
- * Lookup address and call origin with array of latitude and longitude, for example:
- * [37.421955, -122.084058]
- *
- * @author Roman Pushkin (roman.pushkin@gmail.com)
- * @date 2017-05-06
- * @abstract
- * @extends Action
- * @version 1.1
- * @since 0.1.0
- */
 export default class LookupAddress extends Action {
-  /**
-   * Constructor.
-   *
-   * @param {Object} options - action options.
-   * @param {Action} origin - origin action.
-   */
-  constructor(options, origin, settings, getGeocoder) {
+
+  constructor(options, origin, settings) {
     super(Object.assign({ type: origin.type }, options));
     this.origin = origin;
     this.settings = settings || new Settings();
-    this.getGeocoder = getGeocoder || importedGetGeocoder;
   }
 
-  /**
-   * This method is not decorated.
-   */
   get() {
+    if (this.user.state.pendingSearchResults) {
+      const results = this.user.state.pendingSearchResults;
+      const rows = results.map((r, i) => [{ label: `${i + 1}. ${r.name}`, value: `loc_${i}` }]);
+      rows.push([{ label: '❌ Cancel', value: 'cancel_search' }]);
+      return new CompositeResponse()
+        .add(new TextResponse({ message: '📍 Select a location:' }))
+        .add(new OptionsResponse({ rows }));
+    }
     return this.origin.get();
   }
 
-  /**
-   * Lookup address and call origin with array of coordinates. For example:
-   * [37.421955, -122.084058]
-   */
   post(address) {
-    if (typeof address === 'string') {
-      // callback, to be executed after asynchronous operation
-      const cb = (result) => {
-        if (result === address) {
-          // no action was performed, address is the same, just call origin
-          return this.origin.post(result);
-        }
-        // address was resolved, add map response so user can see how this address was resolved
+    if (this.user.state.pendingSearchResults) {
+      const results = this.user.state.pendingSearchResults;
+
+      if (address === 'cancel_search') {
         return new CompositeResponse()
-          .add(new MapResponse({ location: result }))
-          .add(this.origin.post(result));
+          .add(new UserStateResponse({ pendingSearchResults: null }))
+          .add(new TextResponse({ message: '❌ Search cancelled.' }))
+          .add(this.origin.get());
+      }
+
+      if (typeof address === 'string' && address.startsWith('loc_')) {
+        const idx = parseInt(address.replace('loc_', ''), 10);
+        if (idx >= 0 && idx < results.length) {
+          const chosen = results[idx];
+          const coords = [chosen.lat, chosen.lon];
+          return new CompositeResponse()
+            .add(new UserStateResponse({ pendingSearchResults: null }))
+            .add(new MapResponse({ location: coords }))
+            .add(this.origin.post(coords));
+        }
+      }
+
+      if (Array.isArray(address)) {
+        return new CompositeResponse()
+          .add(new UserStateResponse({ pendingSearchResults: null }))
+          .add(this.origin.post(address));
+      }
+    }
+
+    if (Array.isArray(address)) {
+      return this.origin.post(address);
+    }
+
+    if (typeof address === 'string') {
+      const cb = (result) => {
+        if (!result || result.length === 0) {
+          return new CompositeResponse()
+            .add(new TextResponse({ message: `❌ No results found for "${address}". Try a different name or share your GPS location.` }))
+            .add(this.origin.get());
+        }
+
+        if (result.length === 1) {
+          const coords = [result[0].lat, result[0].lon];
+          return new CompositeResponse()
+            .add(new TextResponse({ message: `📍 Found: ${result[0].name}` }))
+            .add(new MapResponse({ location: coords }))
+            .add(this.origin.post(coords));
+        }
+
+        const rows = result.map((r, i) => [{ label: `${i + 1}. ${r.name}`, value: `loc_${i}` }]);
+        rows.push([{ label: '❌ Cancel', value: 'cancel_search' }]);
+
+        return new CompositeResponse()
+          .add(new UserStateResponse({ pendingSearchResults: result }))
+          .add(new TextResponse({ message: `📍 Found ${result.length} results for "${address}":` }))
+          .add(new OptionsResponse({ rows }));
       };
-      // response that represents asynchronous operation
+
       return new PromiseResponse({
-        promise: this.promise(address),
+        promise: this.searchNominatim(address),
         cb: cb.bind(this),
       });
     }
+
     return this.origin.post(address);
   }
 
-  /**
-   * Promise for promise response. Resolves with provided `address` if lookup is unsuccessful
-   * or with array of coordinates if lookup was successful. Never explicitly rejects.
-   * @param {String} address - street address
-   * @private
-   */
-  promise(address) {
+  searchNominatim(query) {
+    const https = require('https');
+    const encodedQuery = encodeURIComponent(query);
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&limit=5&addressdetails=1&accept-language=en`;
+
     return new Promise((resolve) => {
-      // see https://github.com/nchaulet/node-geocoder for settings
-      const geocoder = this.getGeocoder({
-        provider: 'google',
-        httpAdapter: 'https',
-        apiKey: this.settings.GEOCODING_API_KEY,
-        formatter: null,
+      const req = https.get(url, {
+        headers: { 'User-Agent': 'ConnectTaxiBot/1.0' },
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            const results = json.map((item) => ({
+              name: item.display_name.length > 60
+                ? item.display_name.substring(0, 57) + '...'
+                : item.display_name,
+              fullName: item.display_name,
+              lat: parseFloat(item.lat),
+              lon: parseFloat(item.lon),
+            }));
+            resolve(results);
+          } catch (e) {
+            resolve([]);
+          }
+        });
       });
 
-      geocoder.geocode(address, (err, res) => {
-        if (err || !res || !res[0] || !res[0].latitude || !res[0].longitude) {
-          resolve(address);
-          return;
-        }
-        resolve([res[0].latitude, res[0].longitude]);
-      });
+      req.on('error', () => resolve([]));
+      req.setTimeout(10000, () => { req.abort(); resolve([]); });
     });
   }
 
-  /**
-   * This method is not decorated, but re-implemented here. Unfortunately, there is no method
-   * overloading in ES6, so this is definitely area of improvement. TODO: later we can remove
-   * unnecessary get method for action and use `call` always.
-   */
   call(arg) {
     if (arg) {
       return this.post(arg);
     }
-    return this.origin.get();
+    return this.get();
   }
 
-  /**
-   * This method is not decorated.
-   */
   t(...args) {
     return this.origin.t(...args);
   }
 
-  /**
-   * This method is not decorated.
-   */
   gt(...args) {
     return this.origin.gt(...args);
   }

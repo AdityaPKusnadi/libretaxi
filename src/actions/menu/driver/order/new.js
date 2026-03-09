@@ -19,99 +19,64 @@
 import Action from '../../../../action';
 import CompositeResponse from '../../../../responses/composite-response';
 import TextResponse from '../../../../responses/text-response';
-import MapResponse from '../../../../responses/map-response';
 import InterruptPromptResponse from '../../../../responses/interrupt-prompt-response';
 import RedirectResponse from '../../../../responses/redirect-response';
-import MetricDistance from '../../../../decorators/distance/metric-distance';
 import InlineOptionsResponse from '../../../../responses/inline-options-response';
-import If from '../../../../responses/if-response';
-import ZeroPrice from '../../../../conditions/zero-price';
-import inlineButtons from './buttons/inline-buttons';
-import HistoryHash from '../../../../support/history-hash';
 import UserStateResponse from '../../../../responses/user-state-response';
+import CallActionResponse from '../../../../responses/call-action-response';
+import MetricDistance from '../../../../decorators/distance/metric-distance';
+import HistoryHash from '../../../../support/history-hash';
 
-/**
- * Notify driver about new order.
- * Called from outside by {@link NotifyDriversResponseHandler}.
- *
- * @author Roman Pushkin (roman.pushkin@gmail.com)
- * @date 2016-09-30
- * @version 1.1
- * @since 0.1.0
- */
 export default class DriverOrderNew extends Action {
 
-  /**
-   * Constructor.
-   */
   constructor(options) {
     super(Object.assign({ type: 'driver-order-new' }, options));
   }
 
-  /**
-   * Notify driver about order the following way:
-   * - interrupt current prompt (for CLI only)
-   * - show inline buttons (and set callbacks)
-   * - show order details
-   * - redirect back to `driver-index`
-   *
-   * @param {object} args - hash of parameters
-   * @param {number} args.distance - distance to passenger (in km)
-   * @param {Array} args.from - passenger location, for example `[37.421955, -122.084058]`
-   * @param {string} args.to - passenger destination (can contain passenger random comments)
-   * @param {string} args.passengerKey - passenger key
-   * @param {string} args.orderKey - order key
-   * @return {CompositeResponse} - composite response
-   */
   call(args) {
-    const buttons = inlineButtons(args, this.user);
-    const inlineValues = {}; // key-value where key is `guid`, value is `response`
-    Object.keys(buttons).forEach((k) => { inlineValues[buttons[k].guid] = buttons[k].response; });
+    const response = new CompositeResponse();
 
-    const response = new CompositeResponse()
+    const acceptGuid = `accept_${args.orderKey}_${Date.now()}`;
+
+    const inlineValues = {};
+    inlineValues[acceptGuid] = new CallActionResponse({
+      userKey: this.user.userKey,
+      route: 'driver-accept-ride',
+      arg: {
+        passengerKey: args.passengerKey || null,
+        orderKey: args.orderKey || null,
+        passengerLocation: args.from || null,
+        destinationLocation: args.destinationLocation || null,
+        calculatedFare: args.calculatedFare || null,
+        passengerDestination: args.to || null,
+      },
+    });
+
+    const distDisplay = new MetricDistance(this.i18n, args.distance).toString();
+    const fare = args.calculatedFare || {};
+    const fareDisplay = fare.totalFare
+      ? `~${fare.currencySymbol || 'LKR '}${fare.totalFare}`
+      : `~${args.price || '0'}`;
+    const tripDistance = fare.distanceKm ? `${fare.distanceKm} km` : 'N/A';
+
+    const lines = [];
+    lines.push('New Trip Request');
+    lines.push('');
+    lines.push(`Rider ${distDisplay} away`);
+    lines.push(`Estimated distance: ${tripDistance}`);
+    lines.push(`Estimated fare: ${fareDisplay}`);
+
+    response
       .add(new InterruptPromptResponse())
       .add(new UserStateResponse({
         inlineValues: new HistoryHash(this.user.state.inlineValues).merge(inlineValues),
       }))
-      .add(new TextResponse({ message: this.t('new_order') }))
-      .add(new TextResponse({ message: this.t('distance',
-        new MetricDistance(this.i18n, args.distance).toString()) }))
-      .add(new MapResponse({ location: args.from }))
-      .add(new TextResponse({ message: this.t('to', args.to) }))
-      .add(new If({
-        condition: new ZeroPrice(args.price),
-        ok: new TextResponse({ message: this.t('price_not_set') }),
-        err: new TextResponse({ message: this.t('price', args.price) }),
-      }));
-
-    // Show auto-calculated fare breakdown when available
-    if (args.calculatedFare) {
-      response.add(new TextResponse({
-        message: this.t('calculated_fare',
-          `${args.calculatedFare.currencySymbol}${args.calculatedFare.totalFare.toFixed(2)}` +
-          ` (${args.calculatedFare.distanceDisplay})`),
-      }));
-    }
-
-    response
-      .add(new TextResponse({ message: this.t('call_to_action') }))
-      .add(new If({
-        condition: new ZeroPrice(args.price),
-        ok: new InlineOptionsResponse({
-          rows: [
-            [{ label: this.t('set_my_price'), value: buttons.setMyPrice.guid }],
-          ],
-          defaultMessage: this.gt('default_inline_options_message'),
-        }),
-        err: new InlineOptionsResponse({
-          rows: [
-            [
-              { label: this.t('send_my_number'), value: buttons.sendMyNumber.guid },
-              { label: this.t('set_my_price'), value: buttons.setMyPrice.guid },
-            ],
-          ],
-          defaultMessage: this.gt('default_inline_options_message'),
-        }),
+      .add(new TextResponse({ message: lines.join('\n') }))
+      .add(new InlineOptionsResponse({
+        rows: [
+          [{ label: '🟡 Accept', value: acceptGuid }],
+        ],
+        defaultMessage: 'Click to accept this ride',
       }))
       .add(new RedirectResponse({ path: 'driver-index' }));
 
