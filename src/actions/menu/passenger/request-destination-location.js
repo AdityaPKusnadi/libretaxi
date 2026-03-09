@@ -20,11 +20,11 @@ import Action from '../../../action';
 import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
 import RedirectResponse from '../../../responses/redirect-response';
-import OptionsResponse from '../../../responses/options-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import If from '../../../responses/if-response';
 import Location from '../../../conditions/location';
 import ErrorResponse from '../../../responses/error-response';
+import RequestUserInputResponse from '../../../responses/request-user-input-response';
 
 /**
  * Passenger request destination location menu action.
@@ -55,11 +55,7 @@ export default class PassengerRequestDestinationLocation extends Action {
   get() {
     return new CompositeResponse()
       .add(new TextResponse({ message: '🏁 Where is your destination?\n\nType the address or place name below.\nExample: Monas Jakarta, Bandung Station\n\nOr tap the 📎 attachment button → Location → search and pin your destination on the map.' }))
-      .add(new OptionsResponse({
-        rows: [
-          [{ label: this.t('skip'), value: 'skip' }],
-        ],
-      }));
+      .add(new RequestUserInputResponse());
   }
 
   /**
@@ -69,17 +65,6 @@ export default class PassengerRequestDestinationLocation extends Action {
    * @return {CompositeResponse|If}
    */
   post(value) {
-    // User chose to skip → go to manual price entry.
-    // On Telegram, the keyboard button sends the full label text (not a value),
-    // so we match against both the old 'skip' value and the localised label.
-    const skipLabel = this.t('skip');
-    if (value === 'skip' || value === skipLabel) {
-      return new CompositeResponse()
-        .add(new TextResponse({ message: '👌 OK!' }))
-        .add(new RedirectResponse({ path: 'passenger-confirm-fare' }));
-    }
-
-    // Valid GPS coordinates → save and proceed to fare confirmation
     return new If({
       condition: new Location(value),
       ok: new CompositeResponse()
@@ -88,7 +73,7 @@ export default class PassengerRequestDestinationLocation extends Action {
         .add(new RedirectResponse({ path: 'passenger-confirm-fare' })),
       err: new CompositeResponse()
         .add(new ErrorResponse({ message: this.gt('error_location') }))
-        .add(new RedirectResponse({ path: 'passenger-request-destination-location' })),
+        .add(this.get()),
     });
   }
 }

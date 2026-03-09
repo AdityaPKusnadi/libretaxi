@@ -72,7 +72,7 @@ export default class PassengerVerifyLocation extends Action {
         condition: new Equals(value, 'yes'),
         ok: new CompositeResponse()
           .add(new TextResponse({ message: '👌 OK!' }))
-          .add(new RedirectResponse({ path: 'passenger-request-destination' })),
+          .add(new RedirectResponse({ path: 'passenger-request-destination-location' })),
       }))
       .add(new If({
         condition: new Equals(value, 'no'),
