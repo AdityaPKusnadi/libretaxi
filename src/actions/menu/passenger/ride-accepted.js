@@ -5,9 +5,7 @@ import InterruptPromptResponse from '../../../responses/interrupt-prompt-respons
 import RedirectResponse from '../../../responses/redirect-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import OptionsResponse from '../../../responses/options-response';
-import If from '../../../responses/if-response';
-import Equals from '../../../conditions/equals';
-import NotIn from '../../../conditions/not-in';
+import CallActionResponse from '../../../responses/call-action-response';
 
 export default class PassengerRideAccepted extends Action {
   constructor(options) {
@@ -15,12 +13,10 @@ export default class PassengerRideAccepted extends Action {
   }
 
   get() {
-    // Required but bypassed mostly
     return new TextResponse({ message: 'Ride accepted.' });
   }
 
   call(args) {
-    // Normally Called via CallActionResponse directly with args
     if (args && args.rideNumDisplay) {
       return new CompositeResponse()
         .add(new InterruptPromptResponse())
@@ -28,6 +24,7 @@ export default class PassengerRideAccepted extends Action {
           menuLocation: 'passenger-ride-accepted',
           tripStatus: 'accepted',
           driverPhone: args.driverPhone,
+          driverKey: args.driverKey,
         }))
         .add(new TextResponse({ 
           message: `✅ Ride #${args.rideNumDisplay} confirmed by driver.\n` +
@@ -36,14 +33,30 @@ export default class PassengerRideAccepted extends Action {
                    `📏 Distance: ${args.distanceKm} km\n` +
                    `💰 Total Fare: ${args.fareFormat}`
         }))
-        .add(new RedirectResponse({ path: 'blank-screen' })); // Immediately go to blank screen
+        .add(new OptionsResponse({
+          rows: [
+            [{ label: '🟢 Proceed', value: 'proceed' }],
+          ],
+        }));
     }
     return super.call(args);
   }
 
   post(value) {
-    return new CompositeResponse()
-      .add(new TextResponse({ message: '👌 OK!' }))
-      .add(new RedirectResponse({ path: 'blank-screen' }));
+    const driverKey = this.user.state.driverKey;
+
+    const response = new CompositeResponse()
+      .add(new TextResponse({ message: '👌 OK!' }));
+
+    if (driverKey) {
+      response.add(new CallActionResponse({
+        userKey: driverKey,
+        route: 'driver-accept-ride',
+        arg: { showLocations: true },
+      }));
+    }
+
+    response.add(new RedirectResponse({ path: 'blank-screen' }));
+    return response;
   }
 }

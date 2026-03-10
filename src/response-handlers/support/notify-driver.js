@@ -116,7 +116,10 @@ export default class NotifyDriver {
         to: order.state.passengerDestination,
         price: order.state.price,
         passengerKey: order.state.passengerKey,
+        passengerName: order.state.passengerName || null,
         calculatedFare: order.state.calculatedFare || null,
+        destinationLocation: order.state.destinationLocation || null,
+        rideNum: order.state.rideNum || null,
       };
       this.queue.create({ userKey: driverKey, arg, route: 'driver-order-new' }); // eslint-disable-line max-len
 

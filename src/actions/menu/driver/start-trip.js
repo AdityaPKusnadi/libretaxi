@@ -38,7 +38,7 @@ export default class DriverStartTrip extends Action {
     const lines = [];
     lines.push('🚕 Trip Started!');
     lines.push('');
-    lines.push(`📏 Distance: ${fare.distanceKm || 0} km`);
+    lines.push(`✏ Distance: ${fare.distanceKm || 0} km`);
     lines.push(`💰 Fare: ${fare.currencySymbol || 'LKR '}${fare.totalFare || 0}`);
     lines.push('');
     lines.push('When you arrive at the destination, tap the 🔴 End Trip button below to share your location and end the trip.');

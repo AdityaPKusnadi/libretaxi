@@ -44,6 +44,7 @@ export default class DriverOrderNew extends Action {
       route: 'driver-accept-ride',
       arg: {
         passengerKey: args.passengerKey || null,
+        passengerName: args.passengerName || null,
         orderKey: args.orderKey || null,
         passengerLocation: args.from || null,
         destinationLocation: args.destinationLocation || null,
@@ -61,10 +62,10 @@ export default class DriverOrderNew extends Action {
     const tripDistance = fare.distanceKm ? `${fare.distanceKm} km` : 'N/A';
 
     const lines = [];
-    lines.push('New Trip Request 🚕');
+    lines.push('New Trip Request');
     lines.push('');
-    lines.push(`Rider distance: ${distDisplay} away`);
-    lines.push(`Est. trip distance: ${tripDistance}`);
+    lines.push(`Rider ${distDisplay} away`);
+    lines.push(`Estimated distance: ${tripDistance}`);
     lines.push(`Estimated fare: ${fareDisplay}`);
 
     response

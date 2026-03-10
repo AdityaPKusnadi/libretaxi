@@ -19,6 +19,8 @@
 import Action from '../../../action';
 import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
+import InterruptPromptResponse from '../../../responses/interrupt-prompt-response';
+import RequestUserInputResponse from '../../../responses/request-user-input-response';
 import OptionsResponse from '../../../responses/options-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import RedirectResponse from '../../../responses/redirect-response';
@@ -35,6 +37,14 @@ export default class DriverAcceptRide extends Action {
   }
 
   call(args) {
+    if (args && args.showLocations) {
+      this.user.state.passengerProceeded = true;
+      return new CompositeResponse()
+        .add(new InterruptPromptResponse())
+        .add(new UserStateResponse({ passengerProceeded: true }))
+        .add(this._showLocations());
+    }
+
     if (args && args.orderKey) {
       // Direct call from Accept inline button: update the local state manually
       // so get() can read it, and issue a UserStateResponse to persist it.
@@ -53,27 +63,34 @@ export default class DriverAcceptRide extends Action {
             fareFormat,
             rideNumDisplay,
             driverPhone: this.user.state.phone || 'N/A',
+            driverKey: this.user.userKey,
           },
         }))
         .add(new UserStateResponse({ 
           currentOrder: args,
           menuLocation: 'driver-accept-ride'
         }))
-        .add(this.get());
+        .add(new TextResponse({ message: '✅ Ride accepted!\n\nWaiting for rider to confirm...' }));
     }
     // Execution from normal user input
     return super.call(args);
   }
 
   get() {
+    if (!this.user.state.passengerProceeded) {
+      return new CompositeResponse()
+        .add(new TextResponse({ message: '✅ Ride accepted!\n\nWaiting for rider to confirm...' }))
+        .add(new RequestUserInputResponse());
+    }
+    return this._showLocations();
+  }
+
+  _showLocations() {
     const order = this.user.state.currentOrder || {};
     const phone = this.user.state.phone || 'N/A';
     const pickup = order.passengerLocation;
     const dropoff = order.destinationLocation;
     const fare = order.calculatedFare || {};
-
-    const mapsPickup = pickup ? `https://maps.google.com/?q=${pickup[0]},${pickup[1]}` : '';
-    const mapsDropoff = dropoff ? `https://maps.google.com/?q=${dropoff[0]},${dropoff[1]}` : '';
 
     const response = new CompositeResponse();
 
