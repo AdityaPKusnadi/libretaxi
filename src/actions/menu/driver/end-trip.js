@@ -25,6 +25,7 @@ import CallActionResponse from '../../../responses/call-action-response';
 import { calculateFareFromDistance } from '../../../fare/fare-calculator';
 import calculateDistance from '../../../fare/distance-calculator';
 import Firebase from 'firebase-admin';
+import firebaseDB from '../../../firebase-db';
 
 export default class DriverEndTrip extends Action {
 
@@ -105,6 +106,22 @@ export default class DriverEndTrip extends Action {
     }
 
     response.add(new RedirectResponse({ path: 'select-user-type' }));
+
+    try {
+      const tripRef = firebaseDB.config().ref('trips').push();
+      tripRef.set({
+        passengerName: riderName,
+        driverName: driverUsername,
+        driverPhone: driverPhone,
+        tripDistance: distanceKm,
+        tripFare: finalFare.totalFare || 0,
+        fare: finalFare.totalFare || 0,
+        rateDescription: rateDesc,
+        createdAt: Date.now(),
+      });
+    } catch (e) {
+      console.log(`Error saving trip to Firebase: ${e}`);
+    }
 
     return response;
   }

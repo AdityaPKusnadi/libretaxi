@@ -49,17 +49,27 @@ export default class SelectUserType extends Action {
     return new CompositeResponse()
       .add(new If({
         condition: new Equals(value, 'passenger'),
-        ok: new CompositeResponse()
-          .add(new UserStateResponse({ userType: 'passenger' }))
-          .add(new TextResponse({ message: '👌 OK!' }))
-          .add(new RedirectResponse({ path: 'request-phone' })),
+        ok: this.user.state.phone
+          ? new CompositeResponse()
+              .add(new UserStateResponse({ userType: 'passenger' }))
+              .add(new TextResponse({ message: '👌 We\'re all set, you\'re good to order a ride now!' }))
+              .add(new RedirectResponse({ path: 'passenger-index' }))
+          : new CompositeResponse()
+              .add(new UserStateResponse({ userType: 'passenger' }))
+              .add(new TextResponse({ message: '👌 OK!' }))
+              .add(new RedirectResponse({ path: 'request-phone' })),
       }))
       .add(new If({
         condition: new Equals(value, 'driver'),
-        ok: new CompositeResponse()
-          .add(new UserStateResponse({ userType: 'driver' }))
-          .add(new TextResponse({ message: '👌 OK!' }))
-          .add(new RedirectResponse({ path: 'request-phone' })),
+        ok: this.user.state.phone
+          ? new CompositeResponse()
+              .add(new UserStateResponse({ userType: 'driver', vehicleType: 'car' }))
+              .add(new TextResponse({ message: '👌 Welcome back, driver!' }))
+              .add(new RedirectResponse({ path: 'driver-index' }))
+          : new CompositeResponse()
+              .add(new UserStateResponse({ userType: 'driver' }))
+              .add(new TextResponse({ message: '👌 OK!' }))
+              .add(new RedirectResponse({ path: 'request-phone' })),
       }))
       .add(new If({
         condition: new Equals(value, 'update-location'),
