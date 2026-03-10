@@ -19,6 +19,7 @@
 import Settings from '../../settings';
 import loadFareConfig, { saveFareConfig, saveRadius, getRadius } from '../fare/fare-config';
 import firebaseDB from '../firebase-db';
+import { getOracleConnection } from '../support/oracle-db';
 
 const settings = new Settings();
 
@@ -185,49 +186,54 @@ function cmdListUsers(api, chatId, userType) {
   return true;
 }
 
-function cmdTrips(api, chatId, arg) {
-  const db = firebaseDB.config();
-  const tripsRef = db.ref('trips');
-  tripsRef.once('value', (snap) => {
-    const data = snap.val() || {};
-    const now = Date.now();
-    const day = 24 * 60 * 60 * 1000;
-    let filterStart = 0;
+async function cmdTrips(api, chatId, arg) {
+  try {
+    const connection = await getOracleConnection();
+    if (!connection) {
+      api.sendMessage(chatId, `Failed to connect to Oracle DB.`);
+      return true;
+    }
+    
     let filterLabel = 'All';
-
+    let sql = `SELECT passenger_name, driver_name, trip_distance, trip_fare, created_at FROM trip_logs`;
+    let binds = {};
+    
     const period = (arg || '').toLowerCase().trim();
     if (period === 'today') {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      filterStart = todayStart.getTime();
+      sql += ` WHERE created_at >= TRUNC(SYSDATE)`;
       filterLabel = 'Today';
     } else if (period === 'week') {
-      filterStart = now - 7 * day;
+      sql += ` WHERE created_at >= TRUNC(SYSDATE) - 7`;
       filterLabel = 'This week';
     } else if (period === 'month') {
-      filterStart = now - 30 * day;
+      sql += ` WHERE created_at >= TRUNC(SYSDATE) - 30`;
       filterLabel = 'This month';
     }
-
+    
+    sql += ` ORDER BY created_at ASC`;
+    
+    const result = await connection.execute(sql, binds);
+    await connection.close();
+    
     const trips = [];
     let totalRevenue = 0;
-    Object.keys(data).forEach((key) => {
-      const t = data[key];
-      const created = t.createdAt || 0;
-      if (created < filterStart) return;
-      const fare = t.tripFare || t.fare || 0;
-      totalRevenue += fare;
-      trips.push({
-        rider: t.passengerName || 'Rider',
-        distance: t.tripDistance || 0,
-        fare,
-        date: new Date(created).toLocaleDateString(),
+    
+    if (result.rows) {
+      result.rows.forEach((row) => {
+        const fare = row[3] || 0;
+        totalRevenue += fare;
+        trips.push({
+          rider: row[0] || 'Rider',
+          distance: row[2] || 0,
+          fare,
+          date: new Date(row[4]).toLocaleDateString(),
+        });
       });
-    });
+    }
 
     if (trips.length === 0) {
       api.sendMessage(chatId, `No trips found (${filterLabel}).`);
-      return;
+      return true;
     }
 
     const lines = [`📊 Trips — ${filterLabel} (${trips.length}):`];
@@ -243,6 +249,9 @@ function cmdTrips(api, chatId, arg) {
     }
 
     api.sendMessage(chatId, lines.join('\n'));
-  });
+  } catch (err) {
+    console.error('Error fetching trips from Oracle:', err);
+    api.sendMessage(chatId, `Error fetching trips: ${err.message}`);
+  }
   return true;
 }

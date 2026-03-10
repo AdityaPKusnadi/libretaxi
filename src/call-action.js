@@ -25,7 +25,7 @@ import { loadUser } from './factories/user-factory';
 // 1. Action is created based on provided `options.route`.
 // 2. Action is called, response is received.
 // 3. Handler is executed for specific response
-// 4. If `once` is false, message is posted to `kue` when handler is finished.
+// 4. If `once` is false, message is posted to `queue` when handler is finished.
 
 export default (options) => { // eslint-disable-line
   // console.dir(options);

@@ -116,10 +116,7 @@ queue.process((job, done) => {
 process.once('SIGTERM', () => {
   console.log('Shutting down gracefully...');
   api.stopPolling(); // TODO: improve when Telegram webhook used
-  queue.queue.shutdown(5000, (err) => {
-    console.log(`Kue shutdown: ${err || 'OK'}`);
-    process.exit(0);
-  });
+  process.exit(0);
 });
 
 const getLocation = (msg) => {

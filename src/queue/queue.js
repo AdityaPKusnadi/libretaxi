@@ -16,12 +16,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import kue from 'kue';
+import { enqueueJobOracle, processNextJobOracle } from '../support/oracle-db.js';
 import { mix } from 'mixwith';
 import checkNotNull from '../validations/check-not-null.js';
 
 /**
- * Base queue class. Implements facade-ish methods around `kue` library.
+ * Base queue class. Implements facade-ish methods around Oracle DB.
  *
  * @author Roman Pushkin (roman.pushkin@gmail.com)
  * @date 2016-08-28
@@ -40,8 +40,7 @@ export default class Queue extends mix(class {}).with(checkNotNull('type')) {
   constructor(options) {
     super(options);
     this.type = options.type;
-    this.queue = options.queue || kue.createQueue();
-    if (!options.queue) this.queue.watchStuckJobs();
+    this.isProcessing = false;
   }
 
   /**
@@ -50,11 +49,7 @@ export default class Queue extends mix(class {}).with(checkNotNull('type')) {
    * @param {Object} options - hash of parameters
    */
   create(options) {
-    this.queue
-      .create(this.type, options)
-      .removeOnComplete(true)
-      .ttl(5000)
-      .save();
+    enqueueJobOracle(this.type, options, 0);
   }
 
   /**
@@ -64,12 +59,7 @@ export default class Queue extends mix(class {}).with(checkNotNull('type')) {
    * @param {Number} delay - (optional) delay in msec, 1000 msec by default.
    */
   createDelayed(options, delay = 1000) {
-    this.queue
-      .create(this.type, options)
-      .delay(delay)
-      .removeOnComplete(true)
-      .ttl(5000)
-      .save();
+    enqueueJobOracle(this.type, options, delay);
   }
 
   /**
@@ -78,7 +68,22 @@ export default class Queue extends mix(class {}).with(checkNotNull('type')) {
    * @param {Function} callback - function to be executed for each queue message.
    */
   process(callback) {
-    this.queue
-      .process(this.type, 200, callback);
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+    
+    // Polling loop to process jobs
+    const poll = async () => {
+      const processed = await processNextJobOracle(this.type, async (job, done) => {
+         try {
+           await callback(job, done);
+         } catch(e) {
+           console.error('Job processing error:', e);
+           done();
+         }
+      });
+      // If a job was processed, check again immediately. Else wait a bit.
+      setTimeout(poll, processed ? 100 : 2000);
+    };
+    poll();
   }
 }

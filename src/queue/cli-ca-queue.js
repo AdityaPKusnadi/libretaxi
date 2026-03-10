@@ -20,7 +20,7 @@ import CaQueue from './ca-queue';
 import Queue from './queue';
 import { mix } from 'mixwith';
 import checkNotNull from '../validations/check-not-null.js';
-import kue from 'kue';
+import { enqueueJobOracle } from '../support/oracle-db.js';
 
 /**
  * CLI "Call action" queue. Used to call menu actions in CLI environment only.
@@ -45,10 +45,7 @@ export default class CliCaQueue extends mix(CaQueue).with(checkNotNull('userKey'
   constructor(options) {
     super(options);
     this.instanceType = `${this.type}-${options.userKey}`;
-    // dependency injection for tests (instanceQueue and instanceKue)
     this.instanceQueue = options.instanceQueue || new Queue({ type: this.instanceType });
-    this.instanceKue = options.instanceKue || kue.createQueue();
-    if (!options.instanceKue) this.instanceKue.watchStuckJobs();
     this.recreate = this.recreate.bind(this);
   }
 
@@ -73,16 +70,8 @@ export default class CliCaQueue extends mix(CaQueue).with(checkNotNull('userKey'
     const data = job.data;
     const destinationType = `${this.type}-${data.userKey}`;
 
-    // create every time, maybe not the best idea, but OK for development/tests
-    this.instanceKue
-      .create(destinationType, data)
-      .removeOnComplete(true)
-      .ttl(5000)
-      .save();
+    enqueueJobOracle(destinationType, data, 0);
 
-    // console.log(`job type: ${job.type}`);
-    // console.log(`current instance type: ${this.instanceType}`);
-    // console.log(`posting to ${destinationType}`);
     done();
   }
 }

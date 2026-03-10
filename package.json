@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "LibreTaxi (@libretaxi_bot)",
   "main": "src/app.js",
-  "dependencies": {},
+  "dependencies": {
+    "oracledb": "^6.10.0"
+  },
   "devDependencies": {
     "app-root-path": "^1.2.1",
     "ava": "^0.15.2",
@@ -26,12 +28,10 @@
     "geopoint": "git+https://github.com/ro31337/node-geopoint.git#98537c3",
     "i18n": "^0.8.3",
     "inquirer": "git+https://github.com/ro31337/Inquirer.js.git#a041b13",
-    "kue": "^0.11.1",
     "mixwith": "^0.1.1",
     "moment": "^2.14.1",
     "node-geocoder": "^3.16.0",
     "oboe": "^2.1.2",
-    "redis": "^2.8.0",
     "sinon": "^1.17.4",
     "tgfancy": "^0.12.0",
     "uuid": "^3.0.1",
@@ -49,7 +49,10 @@
     "telegram": "babel-node ./src/app-telegram.js",
     "start": "echo ERR: Type \\\"npm run cli [params]\\\" or \\\"npm run telegram [params]\\\"",
     "esdoc": "esdoc -c esdoc.json && rm esdoc/package.json",
-    "tools:purge": "babel-node ./src/tools/purge-stale-orders.js"
+    "tools:purge": "babel-node ./src/tools/purge-stale-orders.js",
+    "tools:migrate-oracle": "babel-node ./src/tools/migrate-oracle.js",
+    "tools:migrate-oracle-fresh": "babel-node ./src/tools/migrate-oracle-fresh.js",
+    "tools:migrate-firebase-trips": "babel-node ./src/tools/migrate-firebase-trips.js"
   },
   "repository": {
     "type": "git",

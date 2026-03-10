@@ -16,9 +16,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import kue from 'kue';
+import { saveConfigToOracle, getConfigFromOracle } from '../support/oracle-db';
 
-const REDIS_KEY = 'libretaxi:fare_config';
+const ORACLE_KEY = 'libretaxi:fare_config';
 const RADIUS_KEY = 'libretaxi:max_radius';
 
 const DEFAULT_CONFIG = {
@@ -32,14 +32,6 @@ const DEFAULT_CONFIG = {
 
 let cachedConfig = null;
 let cachedRadius = null;
-let redisClient = null;
-
-function getRedis() {
-  if (!redisClient) {
-    redisClient = kue.redis.createClient();
-  }
-  return redisClient;
-}
 
 export default function loadFareConfig() {
   if (cachedConfig) return Object.assign({}, cachedConfig);
@@ -51,37 +43,34 @@ export function saveFareConfig(updates) {
   const merged = Object.assign({}, current, updates);
   cachedConfig = merged;
   try {
-    getRedis().set(REDIS_KEY, JSON.stringify(merged));
+    saveConfigToOracle(ORACLE_KEY, JSON.stringify(merged));
   } catch (e) {
-    console.log(`Error saving fare config to Redis: ${e}`);
+    console.log(`Error saving fare config to Oracle: ${e}`);
   }
   return merged;
 }
 
-export function loadFareConfigFromRedis() {
-  return new Promise((resolve) => {
-    try {
-      getRedis().get(REDIS_KEY, (err, data) => {
-        if (err || !data) {
-          cachedConfig = Object.assign({}, DEFAULT_CONFIG);
-        } else {
-          cachedConfig = Object.assign({}, DEFAULT_CONFIG, JSON.parse(data));
-        }
-        resolve(cachedConfig);
-      });
-    } catch (e) {
+export async function loadFareConfigFromRedis() { // keep name to prevent breaking changes in callers
+  try {
+    const data = await getConfigFromOracle(ORACLE_KEY);
+    if (!data) {
       cachedConfig = Object.assign({}, DEFAULT_CONFIG);
-      resolve(cachedConfig);
+    } else {
+      cachedConfig = Object.assign({}, DEFAULT_CONFIG, JSON.parse(data));
     }
-  });
+    return cachedConfig;
+  } catch (e) {
+    cachedConfig = Object.assign({}, DEFAULT_CONFIG);
+    return cachedConfig;
+  }
 }
 
 export function saveRadius(val) {
   cachedRadius = val;
   try {
-    getRedis().set(RADIUS_KEY, String(val));
+    saveConfigToOracle(RADIUS_KEY, String(val));
   } catch (e) {
-    console.log(`Error saving radius to Redis: ${e}`);
+    console.log(`Error saving radius to Oracle: ${e}`);
   }
 }
 
@@ -89,20 +78,17 @@ export function getRadius() {
   return cachedRadius;
 }
 
-export function loadRadiusFromRedis(defaultRadius) {
-  return new Promise((resolve) => {
-    try {
-      getRedis().get(RADIUS_KEY, (err, data) => {
-        if (err || !data) {
-          cachedRadius = defaultRadius;
-        } else {
-          cachedRadius = parseInt(data, 10) || defaultRadius;
-        }
-        resolve(cachedRadius);
-      });
-    } catch (e) {
+export async function loadRadiusFromRedis(defaultRadius) { // keep name to prevent breaking changes
+  try {
+    const data = await getConfigFromOracle(RADIUS_KEY);
+    if (!data) {
       cachedRadius = defaultRadius;
-      resolve(cachedRadius);
+    } else {
+      cachedRadius = parseInt(data, 10) || defaultRadius;
     }
-  });
+    return cachedRadius;
+  } catch (e) {
+    cachedRadius = defaultRadius;
+    return cachedRadius;
+  }
 }

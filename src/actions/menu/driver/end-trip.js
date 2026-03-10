@@ -26,6 +26,7 @@ import { calculateFareFromDistance } from '../../../fare/fare-calculator';
 import calculateDistance from '../../../fare/distance-calculator';
 import Firebase from 'firebase-admin';
 import firebaseDB from '../../../firebase-db';
+import { logTripToOracle } from '../../../support/oracle-logger';
 
 export default class DriverEndTrip extends Action {
 
@@ -108,19 +109,17 @@ export default class DriverEndTrip extends Action {
     response.add(new RedirectResponse({ path: 'select-user-type' }));
 
     try {
-      const tripRef = firebaseDB.config().ref('trips').push();
-      tripRef.set({
+      // Log to Oracle DB
+      logTripToOracle({
         passengerName: riderName,
         driverName: driverUsername,
         driverPhone: driverPhone,
         tripDistance: distanceKm,
         tripFare: finalFare.totalFare || 0,
-        fare: finalFare.totalFare || 0,
-        rateDescription: rateDesc,
-        createdAt: Date.now(),
+        rateDescription: rateDesc
       });
     } catch (e) {
-      console.log(`Error saving trip to Firebase: ${e}`);
+      console.log(`Error saving trip to Oracle: ${e}`);
     }
 
     return response;
