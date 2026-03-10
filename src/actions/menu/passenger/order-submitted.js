@@ -55,7 +55,7 @@ export default class OrderSubmitted extends Action {
       .add(new OptionsResponse({
         rows: [
           [
-            { label: this.t('cancel'), value: 'cancel' },
+            { label: '❌ Cancel', value: 'cancel' },
           ],
         ],
       }));
@@ -70,8 +70,9 @@ export default class OrderSubmitted extends Action {
    * @return {ErrorResponse} - when input is incorrect
    */
   post(value) {
-    if (value === 'cancel') {
+    if (value === 'cancel' || value === '❌ Cancel') {
       return new CompositeResponse()
+        .add(new TextResponse({ message: '👌 OK!' }))
         .add(new CancelCurrentOrderResponse())
         .add(new RedirectResponse({ path: 'blank-screen' }));
     }

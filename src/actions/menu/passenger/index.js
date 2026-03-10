@@ -30,6 +30,7 @@ export default class PassengerIndex extends Action {
 
   get() {
     return new CompositeResponse()
+      .add(new UserStateResponse({ pendingSearchResults: null }))
       .add(new TextResponse({ message: '🚕 Where would you like to go?\n\nPlease share your pickup location.' }))
       .add(new RedirectResponse({ path: 'passenger-request-location' }));
   }

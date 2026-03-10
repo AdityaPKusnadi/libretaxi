@@ -22,6 +22,7 @@ import TextResponse from '../../../responses/text-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import RedirectResponse from '../../../responses/redirect-response';
 import RequestLocationResponse from '../../../responses/request-location-response';
+import CallActionResponse from '../../../responses/call-action-response';
 import Firebase from 'firebase-admin';
 
 export default class DriverStartTrip extends Action {
@@ -43,6 +44,11 @@ export default class DriverStartTrip extends Action {
     lines.push('When you arrive at the destination, tap the 🔴 End Trip button below to share your location and end the trip.');
 
     return new CompositeResponse()
+      .add(new CallActionResponse({
+        userKey: order.passengerKey,
+        route: 'passenger-trip-started',
+        arg: { started: true },
+      }))
       .add(new UserStateResponse({
         tripStatus: 'in_progress',
         tripStartedAt: Firebase.database.ServerValue.TIMESTAMP,
