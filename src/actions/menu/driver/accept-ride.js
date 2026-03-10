@@ -69,8 +69,7 @@ export default class DriverAcceptRide extends Action {
         .add(new UserStateResponse({ 
           currentOrder: args,
           menuLocation: 'driver-accept-ride'
-        }))
-        .add(new TextResponse({ message: '✅ Ride accepted!\n\nWaiting for rider to confirm...' }));
+        }));
     }
     // Execution from normal user input
     return super.call(args);
