@@ -26,6 +26,7 @@ import RedirectResponse from '../../../responses/redirect-response';
 import If from '../../../responses/if-response';
 import Location from '../../../conditions/location';
 import ErrorResponse from '../../../responses/error-response';
+import Settings from '../../../../settings';
 
 /**
  * Driver request location menu action.
@@ -66,13 +67,14 @@ export default class DriverRequestLocation extends Action {
    * @return {IfResponse} response - instance of conditional response
    */
   post(value) {
+    const settings = new Settings();
     return new If({
       condition: new Location(value),
       ok: new CompositeResponse()
         .add(new UpdateLocationResponse({ location: value }))
-        .add(new UserStateResponse({ location: value }))
+        .add(new UserStateResponse({ location: value, radius: settings.MAX_RADIUS }))
         .add(new TextResponse({ message: '👌 OK!' }))
-        .add(new RedirectResponse({ path: 'driver-request-radius' })),
+        .add(new RedirectResponse({ path: 'driver-explain-whats-next' })),
       err: new ErrorResponse({ message: this.gt('error_location') }),
     });
   }

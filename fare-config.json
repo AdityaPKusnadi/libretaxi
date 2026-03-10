@@ -1,8 +1,8 @@
 {
   "currency": "LKR",
   "currencySymbol": "LKR ",
-  "baseFare": 500,
-  "baseKm": 1,
-  "perKmRate": 250,
+  "baseFare": 300,
+  "baseKm": 3,
+  "perKmRate": 100,
   "useKilometres": true
 }

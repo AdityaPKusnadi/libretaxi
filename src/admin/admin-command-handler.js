@@ -17,7 +17,7 @@
 */
 
 import Settings from '../../settings';
-import loadFareConfig, { saveFareConfig } from '../fare/fare-config';
+import loadFareConfig, { saveFareConfig, saveRadius, getRadius } from '../fare/fare-config';
 import firebaseDB from '../firebase-db';
 
 const settings = new Settings();
@@ -86,8 +86,8 @@ function cmdBaseRate(api, chatId, arg) {
 
 function cmdBaseKm(api, chatId, arg) {
   const val = parseFloat(arg);
-  if (isNaN(val) || val <= 0) {
-    api.sendMessage(chatId, '❌ Usage: /basekm [km]\nExample: /basekm 5');
+  if (isNaN(val) || val <= 0 || val > 50) {
+    api.sendMessage(chatId, '❌ Usage: /basekm [km] (max 50)\nExample: /basekm 5');
     return true;
   }
   saveFareConfig({ baseKm: val });
@@ -128,6 +128,7 @@ function cmdSetRadius(api, chatId, arg) {
     return true;
   }
   settings.MAX_RADIUS = val;
+  saveRadius(val);
   api.sendMessage(chatId, `✅ Driver search radius updated to ${val} km`);
   return true;
 }

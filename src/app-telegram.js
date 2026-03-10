@@ -27,14 +27,21 @@ import initLocale from './support/init-locale';
 import InlineButtonCallback from './response-handlers/common/inline-button-callback';
 import Settings from '../settings';
 import handleAdminCommand from './admin/admin-command-handler';
+import { loadFareConfigFromRedis, loadRadiusFromRedis } from './fare/fare-config';
 
 const settings = new Settings();
 const api = new TelegramBot(settings.TELEGRAM_TOKEN, {
   polling: true,
   tgfancy: { orderedSending: true },
 });
-console.log('OK Connect bot is waiting for messages...');
 const queue = new CaQueue();
+
+loadFareConfigFromRedis().then(() => {
+  loadRadiusFromRedis(settings.MAX_RADIUS).then((radius) => {
+    settings.MAX_RADIUS = radius;
+    console.log(`OK Connect bot is waiting for messages... (radius: ${radius} km)`);
+  });
+});
 
 api.on('message', (msg) => {
   api.sendChatAction(msg.chat.id, 'typing').catch(() => {});
@@ -46,21 +53,20 @@ api.on('message', (msg) => {
   console.log(`Got '${something}' from ${userKey}`);
 
   withUser(userKey, (user) => {
+    if (user.state.blocked) {
+      api.sendMessage(msg.chat.id, '⛔ Your account has been blocked. Please contact the administrator.');
+      return;
+    }
+
     let menuLocation = user.state.menuLocation || 'default';
-    // System routes always override default routes. Platform specific. In this file for Telegram
-    // only. System route is activated when command starts with slash.
-    // TODO: refactoring required, needs to be moved somewhere.
     if (something === '/start') menuLocation = 'system-reset-user';
 
-    // post the actual message to the queue
     queue.create({
       userKey,
       arg: msg.text ? textToValue(user, msg.text) : something,
       route: menuLocation,
     });
 
-    // Update identity so that we catch actual user's first, last name, Telegram id (username).
-    // Params (first, last, username) below can't be undefined (Firebase will throw exception).
     const from = msg.from || {};
     queue.create({
       userKey,
@@ -80,6 +86,10 @@ api.on('callback_query', (msg) => {
   console.log(`Got inline button value ${data} from ${userKey}`);
 
   withUser(userKey, (user) => {
+    if (user.state.blocked) {
+      api.sendMessage(msg.from.id, '⛔ Your account has been blocked. Please contact the administrator.');
+      return;
+    }
     const t = initLocale(user);
     api.editMessageText(t.__('global.replied_to_order'), {
       chat_id: msg.message.chat.id,
