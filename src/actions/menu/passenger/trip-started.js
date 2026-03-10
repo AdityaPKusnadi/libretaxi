@@ -24,7 +24,7 @@ export default class PassengerTripStarted extends Action {
           tripStatus: 'in_progress',
         }))
         .add(new TextResponse({ 
-          message: `🚕 **Trip Started!**\n\nThe driver has marked the trip as started and is heading to your destination. Have a safe ride!`
+          message: `🚕 Trip Started!\n\nThe driver has marked the trip as started and is heading to your destination. Have a safe ride!`
         }))
         .add(new RedirectResponse({ path: 'blank-screen' })); // Keep screen blank
     }
