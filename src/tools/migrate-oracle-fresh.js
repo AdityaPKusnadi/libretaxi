@@ -10,7 +10,7 @@ async function runFreshMigration() {
     pool = await oracledb.createPool({
       user: 'system',
       password: 'oracle',
-      connectString: 'localhost:1521/XEPDB1',
+      connectString: '192.168.1.29:1521/XEPDB1',
       poolMin: 1,
       poolMax: 5,
       poolIncrement: 1
