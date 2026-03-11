@@ -29,6 +29,7 @@ import MapResponse from '../../../responses/map-response';
 import If from '../../../responses/if-response';
 import Equals from '../../../conditions/equals';
 import NotIn from '../../../conditions/not-in';
+import Order from '../../../order';
 
 export default class DriverAcceptRide extends Action {
 
@@ -46,13 +47,16 @@ export default class DriverAcceptRide extends Action {
     }
 
     if (args && args.orderKey) {
-      // Direct call from Accept inline button: update the local state manually
-      // so get() can read it, and issue a UserStateResponse to persist it.
       this.user.state.currentOrder = args;
       
       const distanceKm = args.calculatedFare ? args.calculatedFare.distanceKm : 'N/A';
       const fareFormat = args.calculatedFare ? `${args.calculatedFare.currencySymbol || 'LKR '}${args.calculatedFare.totalFare}` : 'N/A';
       const rideNumDisplay = args.rideNum ? args.rideNum : '##';
+
+      new Order({ orderKey: args.orderKey }).load().then((order) => {
+        order.setState({ status: 'accepted' });
+        order.save();
+      }).catch(() => {});
       
       return new CompositeResponse()
         .add(new CallActionResponse({
@@ -68,10 +72,14 @@ export default class DriverAcceptRide extends Action {
         }))
         .add(new UserStateResponse({ 
           currentOrder: args,
-          menuLocation: 'driver-accept-ride'
-        }));
+          menuLocation: 'driver-accept-ride',
+          tripStatus: 'accepted',
+          passengerProceeded: false,
+        }))
+        .add(new TextResponse({ message: '\u2705 Ride accepted!\n\nWaiting for rider to confirm...' }))
+        .add(new RequestUserInputResponse());
     }
-    // Execution from normal user input
+
     return super.call(args);
   }
 

@@ -25,22 +25,11 @@ import log from '../../log';
 import NotifyDriver from '../support/notify-driver';
 import Settings from '../../../settings';
 
-/**
- * Notify drivers about newly created order.
- *
- * @author Roman Pushkin (roman.pushkin@gmail.com)
- * @extends {ResponseHandler}
- * @date 2016-10-01
- * @version 1.1
- * @since 0.1.0
- */
+const RETRY_INTERVAL_MS = 15000;
+const MAX_RETRIES = 20;
+
 export default class NotifyDriversResponseHandler extends ResponseHandler {
 
-  /**
-   * Constructor.
-   *
-   * @param {Object} response - {@link SubmitOrderResponse} instance.
-   */
   constructor(options) {
     super(Object.assign({ type: 'notify-drivers-response-handler' }, options));
     this.keyEntered = this.keyEntered.bind(this);
@@ -48,21 +37,11 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
     this.settings = options.settings || new Settings();
   }
 
-  /**
-   * Ensures that database connection is initialized.
-   * @private
-   */
   ensureInitialized() {
     if (this.geoFire) return;
     this.geoFire = new GeoFire(firebaseDB.config().ref('users'));
   }
 
-  /**
-   * Handler entry point.
-   * Loads existing order and queries drivers around (query is based on order properties).
-   * Calls `onResult` when things are set up.
-   * Important note: notification doesn't happen immediately! See `queryDrivers` method.
-   */
   call(onResult) {
     this.ensureInitialized();
     const r = this.response;
@@ -71,22 +50,14 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
       const orderKey = passenger.state.currentOrderKey;
       new Order({ orderKey }).load().then((order) => {
         this.order = order;
-        // query drivers
+        this.orderKey = orderKey;
         this.queryDrivers();
-        // and return immediately, the rest of the magic will happen asynchronously in this class
+        this.startRetryLoop();
         onResult();
       });
     });
   }
 
-  /**
-   * Query nearby drivers with geoFire and notify them. Keep in mind that notification
-   * is not executed immediately, we're awaiting results from geoFire, for every result we
-   * execute notification method (`notifyDriver`). How long it will take?.. It completely
-   * depends on geoFire. We should expect callbacks in a minute, hour, month, etc. or never.
-   *
-   * @private
-   */
   queryDrivers() {
     const q = this.geoFire.query({
       center: this.order.state.passengerLocation,
@@ -96,11 +67,40 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
     q.on('key_entered', this.keyEntered);
   }
 
-  /**
-   * Geofire key_entered callback.
-   *
-   * @private
-   */
+  startRetryLoop() {
+    let retryCount = 0;
+
+    this.retryTimer = setInterval(() => {
+      retryCount++;
+
+      if (retryCount >= MAX_RETRIES) {
+        log.debug(`driver search retry limit reached for order ${this.orderKey}`);
+        clearInterval(this.retryTimer);
+        return;
+      }
+
+      new Order({ orderKey: this.orderKey }).load().then((order) => {
+        if (order.state.status !== 'new') {
+          log.debug(`order ${this.orderKey} is no longer new (status: ${order.state.status}), stopping retry`);
+          clearInterval(this.retryTimer);
+          return;
+        }
+
+        if ((new Date()).getTime() > (order.state.createdAt || 0) + 15 * 60 * 1000) {
+          log.debug(`order ${this.orderKey} is stale, stopping retry`);
+          clearInterval(this.retryTimer);
+          return;
+        }
+
+        this.order = order;
+        log.debug(`retrying driver search for order ${this.orderKey} (retry ${retryCount}/${MAX_RETRIES})`);
+        this.queryDrivers();
+      }).catch((err) => {
+        log.debug(`retry error for order ${this.orderKey}: ${err}`);
+      });
+    }, RETRY_INTERVAL_MS);
+  }
+
   keyEntered(userKey, location, distance) {
     log.debug(`user found: key: ${userKey}, location: ${location}, distance: ${distance}`);
     this.notifyDriver.call(userKey, distance, this.order);

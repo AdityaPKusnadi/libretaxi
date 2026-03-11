@@ -86,10 +86,13 @@ export default class DriverEndTrip extends Action {
     const response = new CompositeResponse();
 
     response.add(new UserStateResponse({
-      tripStatus: 'completed',
+      tripStatus: null,
       tripCompletedAt: Firebase.database.ServerValue.TIMESTAMP,
       tripDistance: distanceKm,
       tripFare: finalFare.totalFare,
+      currentOrder: null,
+      passengerProceeded: null,
+      driverKey: null,
     }));
 
     response.add(new TextResponse({ message: driverSummaryMessage }));
@@ -101,12 +104,12 @@ export default class DriverEndTrip extends Action {
         arg: {
           expectedState: {},
           message: passengerSummaryMessage,
-          path: 'select-user-type',
+          path: 'passenger-index',
         },
       }));
     }
 
-    response.add(new RedirectResponse({ path: 'select-user-type' }));
+    response.add(new RedirectResponse({ path: 'driver-index' }));
 
     try {
       // Log to Oracle DB

@@ -101,6 +101,11 @@ export default class NotifyDriver {
         return;
       }
 
+      if (user.state.tripStatus === 'accepted' || user.state.tripStatus === 'in_progress') {
+        fail('driver is on an active trip');
+        return;
+      }
+
       if (distance > user.state.radius * 1) {
         fail(`distance ${distance} is greater than driver's preferred radius ${user.state.radius}`);
         return;
