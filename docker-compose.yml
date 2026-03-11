@@ -1,0 +1,36 @@
+services:
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: libretaxi-oracle
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_SYSTEM_PASSWORD:-oracle}
+    ports:
+      - "${ORACLE_PORT:-1521}:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: libretaxi-app
+    env_file:
+      - .env
+    volumes:
+      - ./settings.js:/app/settings.js:ro
+      - ./fare-config.json:/app/fare-config.json:ro
+      - ./locales:/app/locales:ro
+    depends_on:
+      oracle:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  oracle-data:

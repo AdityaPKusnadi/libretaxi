@@ -62,3 +62,6 @@ settings-production.js
 
 REQUIREMENTS.md
 libretaxi-e949f-firebase-adminsdk-fbsvc-ef85513f00.json
+
+# Docker
+.env
