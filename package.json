@@ -52,7 +52,8 @@
     "tools:purge": "babel-node ./src/tools/purge-stale-orders.js",
     "tools:migrate-oracle": "babel-node ./src/tools/migrate-oracle.js",
     "tools:migrate-oracle-fresh": "babel-node ./src/tools/migrate-oracle-fresh.js",
-    "tools:migrate-firebase-trips": "babel-node ./src/tools/migrate-firebase-trips.js"
+    "tools:migrate-firebase-trips": "babel-node ./src/tools/migrate-firebase-trips.js",
+    "tools:migrate-firebase-fresh": "babel-node ./src/tools/migrate-firebase-fresh.js"
   },
   "repository": {
     "type": "git",
