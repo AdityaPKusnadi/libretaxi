@@ -27,6 +27,7 @@ services:
       - ./settings.js:/app/settings.js:ro
       - ./fare-config.json:/app/fare-config.json:ro
       - ./locales:/app/locales:ro
+      - ./src:/app/src:ro
     depends_on:
       oracle:
         condition: service_healthy
