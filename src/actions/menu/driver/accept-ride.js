@@ -109,10 +109,8 @@ export default class DriverAcceptRide extends Action {
 
   _showLocations() {
     const order = this.user.state.currentOrder || {};
-    const phone = this.user.state.phone || 'N/A';
     const pickup = order.passengerLocation;
     const dropoff = order.destinationLocation;
-    const fare = order.calculatedFare || {};
 
     const response = new CompositeResponse();
 
@@ -130,31 +128,59 @@ export default class DriverAcceptRide extends Action {
       response.add(new MapResponse({ location: dropoff }));
     }
 
-    response.add(new TextResponse({
-      message: `When you reach the rider and are ready to go, tap Start Trip:`,
-    }));
-
-    response.add(new OptionsResponse({
-      rows: [
-        [{ label: '🟢 Start Trip', value: 'start-trip' }],
-      ],
-    }));
+    if (this.user.state.driverArrived) {
+      response.add(new TextResponse({
+        message: `Rider has been notified that you arrived.\nWhen you are ready to go, tap Start Trip:`,
+      }));
+      response.add(new OptionsResponse({
+        rows: [
+          [{ label: '🟢 Start Trip', value: 'start-trip' }],
+        ],
+      }));
+    } else {
+      response.add(new TextResponse({
+        message: `When you reach the rider, tap Arrived:`,
+      }));
+      response.add(new OptionsResponse({
+        rows: [
+          [{ label: '🔵 Arrived', value: 'arrived' }],
+        ],
+      }));
+    }
 
     return response;
   }
 
   post(value) {
-    // If the value contains 'Start Trip' or 'start-trip' anywhere in the string, consider it a match
+    const isArrived = (value && typeof value === 'string' && 
+                       (value.includes('arrived') || value.includes('Arrived')));
     const isStartTrip = (value && typeof value === 'string' && 
                          (value.includes('start-trip') || value.includes('Start Trip')));
+
+    if (isArrived) {
+      const order = this.user.state.currentOrder || {};
+      return new CompositeResponse()
+        .add(new UserStateResponse({ driverArrived: true }))
+        .add(new CallActionResponse({
+          userKey: order.passengerKey,
+          route: 'show-message',
+          arg: {
+            expectedState: {},
+            message: '🔵 Your driver has arrived at the pickup location!',
+            path: null,
+          },
+        }))
+        .add(new TextResponse({ message: '👌 Rider has been notified that you arrived.' }))
+        .add(new RedirectResponse({ path: 'driver-accept-ride' }));
+    }
 
     if (isStartTrip) {
       return new CompositeResponse()
         .add(new TextResponse({ message: '👌 OK!' }))
+        .add(new UserStateResponse({ driverArrived: null }))
         .add(new RedirectResponse({ path: 'driver-start-trip' }));
     }
 
-    // Default fallback: Redraw the UI
     return new CompositeResponse()
       .add(new RedirectResponse({ path: 'driver-accept-ride' }));
   }

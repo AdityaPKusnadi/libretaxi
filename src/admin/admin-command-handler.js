@@ -48,15 +48,19 @@ export default function handleAdminCommand(api, msg) {
 
   switch (command) {
     case '/baserate':
+    case '/farefirst':
       return cmdBaseRate(api, chatId, arg);
     case '/basekm':
       return cmdBaseKm(api, chatId, arg);
     case '/setrate':
+    case '/fareperkm':
       return cmdSetRate(api, chatId, arg);
     case '/rate':
       return cmdShowRate(api, chatId);
     case '/setradius':
       return cmdSetRadius(api, chatId, arg);
+    case '/getradius':
+      return cmdGetRadius(api, chatId);
     case '/block':
       return cmdBlock(api, chatId, arg, true);
     case '/unblock':
@@ -69,6 +73,10 @@ export default function handleAdminCommand(api, msg) {
       return cmdListUsers(api, chatId, null);
     case '/trips':
       return cmdTrips(api, chatId, arg);
+    case '/revenue':
+      return cmdRevenue(api, chatId);
+    case '/setgroup':
+      return cmdSetGroup(api, chatId, arg);
     default:
       return false;
   }
@@ -253,5 +261,51 @@ async function cmdTrips(api, chatId, arg) {
     console.error('Error fetching trips from Oracle:', err);
     api.sendMessage(chatId, `Error fetching trips: ${err.message}`);
   }
+  return true;
+}
+
+function cmdGetRadius(api, chatId) {
+  const radius = getRadius();
+  api.sendMessage(chatId, `📏 Current driver search radius: ${radius} km`);
+  return true;
+}
+
+async function cmdRevenue(api, chatId) {
+  try {
+    const connection = await getOracleConnection();
+    if (!connection) {
+      api.sendMessage(chatId, `Failed to connect to Oracle DB.`);
+      return true;
+    }
+
+    const result = await connection.execute(
+      `SELECT COUNT(*) as total_trips, NVL(SUM(trip_fare), 0) as total_revenue, NVL(SUM(trip_distance), 0) as total_distance FROM trip_logs`
+    );
+    await connection.close();
+
+    const row = result.rows[0] || [0, 0, 0];
+    const lines = [
+      '💰 Revenue Summary:',
+      '',
+      `📊 Total Trips: ${row[0]}`,
+      `💵 Total Revenue: LKR ${row[1]}`,
+      `📏 Total Distance: ${row[2]} km`,
+    ];
+    api.sendMessage(chatId, lines.join('\n'));
+  } catch (err) {
+    console.error('Error fetching revenue:', err);
+    api.sendMessage(chatId, `Error fetching revenue: ${err.message}`);
+  }
+  return true;
+}
+
+function cmdSetGroup(api, chatId, arg) {
+  const groupId = arg.trim();
+  if (!groupId) {
+    api.sendMessage(chatId, `❌ Usage: /setgroup [group_id]\nUse /groupid in a group to get the ID.`);
+    return true;
+  }
+  saveFareConfig({ tripLogGroupId: groupId });
+  api.sendMessage(chatId, `✅ Trip log group set to: ${groupId}`);
   return true;
 }

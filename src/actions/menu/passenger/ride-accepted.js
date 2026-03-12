@@ -6,6 +6,7 @@ import RedirectResponse from '../../../responses/redirect-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import OptionsResponse from '../../../responses/options-response';
 import CallActionResponse from '../../../responses/call-action-response';
+import CancelCurrentOrderResponse from '../../../responses/cancel-current-order-response';
 
 export default class PassengerRideAccepted extends Action {
   constructor(options) {
@@ -25,17 +26,19 @@ export default class PassengerRideAccepted extends Action {
           tripStatus: 'accepted',
           driverPhone: args.driverPhone,
           driverKey: args.driverKey,
+          rideDistanceKm: args.distanceKm,
+          rideFareFormat: args.fareFormat,
         }))
         .add(new TextResponse({ 
-          message: `✅ Ride #${args.rideNumDisplay} confirmed by driver.\n` +
-                   `Driver can proceed to pickup.\n\n` +
-                   `🚘 Driver: ${args.driverPhone}\n` +
-                   `📏 Distance: ${args.distanceKm} km\n` +
-                   `💰 Total Fare: ${args.fareFormat}`
+          message: `🚕 A driver has accepted your ride!\n\n` +
+                   `📏 Estimated Distance: ${args.distanceKm} km\n` +
+                   `💰 Estimated Fare: ${args.fareFormat}\n\n` +
+                   `Would you like to confirm this booking?`
         }))
         .add(new OptionsResponse({
           rows: [
-            [{ label: '🟢 Proceed', value: 'proceed' }],
+            [{ label: '🟢 Confirm Booking', value: 'confirm' }],
+            [{ label: '🔴 Cancel Booking', value: 'cancel' }],
           ],
         }));
     }
@@ -45,18 +48,61 @@ export default class PassengerRideAccepted extends Action {
   post(value) {
     const driverKey = this.user.state.driverKey;
 
-    const response = new CompositeResponse()
-      .add(new TextResponse({ message: '👌 OK!' }));
+    if (value === 'confirm' || (value && value.includes('Confirm'))) {
+      const response = new CompositeResponse()
+        .add(new TextResponse({ message: '✅ Booking confirmed!' }));
 
-    if (driverKey) {
-      response.add(new CallActionResponse({
-        userKey: driverKey,
-        route: 'driver-accept-ride',
-        arg: { showLocations: true },
+      if (driverKey) {
+        response.add(new CallActionResponse({
+          userKey: driverKey,
+          route: 'driver-accept-ride',
+          arg: { showLocations: true },
+        }));
+      }
+
+      response.add(new TextResponse({
+        message: `🚘 Driver Contact: ${this.user.state.driverPhone || 'N/A'}\n\n` +
+                 `Your driver is on the way to your pickup location. Please wait!`
       }));
+
+      response.add(new RedirectResponse({ path: 'blank-screen' }));
+      return response;
     }
 
-    response.add(new RedirectResponse({ path: 'blank-screen' }));
-    return response;
+    if (value === 'cancel' || (value && value.includes('Cancel'))) {
+      const response = new CompositeResponse()
+        .add(new TextResponse({ message: '❌ Booking cancelled.' }));
+
+      if (driverKey) {
+        response.add(new CallActionResponse({
+          userKey: driverKey,
+          route: 'show-message',
+          arg: {
+            expectedState: {},
+            message: '❌ Rider has cancelled the booking. You are now available for new rides.',
+            path: 'driver-index',
+          },
+        }));
+      }
+
+      response
+        .add(new UserStateResponse({
+          tripStatus: null,
+          driverPhone: null,
+          driverKey: null,
+        }))
+        .add(new CancelCurrentOrderResponse())
+        .add(new RedirectResponse({ path: 'select-user-type' }));
+      return response;
+    }
+
+    return new CompositeResponse()
+      .add(new TextResponse({ message: 'Please choose Confirm Booking or Cancel Booking.' }))
+      .add(new OptionsResponse({
+        rows: [
+          [{ label: '🟢 Confirm Booking', value: 'confirm' }],
+          [{ label: '🔴 Cancel Booking', value: 'cancel' }],
+        ],
+      }));
   }
 }

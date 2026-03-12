@@ -44,7 +44,11 @@ export default class DriverEndTrip extends Action {
     let distanceKm = fare.distanceKm || 0;
     let finalFare = fare;
 
-    if (pickup && dropoff) {
+    if (pickup && endLocation) {
+      const dist = calculateDistance(pickup, endLocation);
+      distanceKm = dist.km;
+      finalFare = calculateFareFromDistance(distanceKm);
+    } else if (pickup && dropoff) {
       const dist = calculateDistance(pickup, dropoff);
       distanceKm = dist.km;
       finalFare = calculateFareFromDistance(distanceKm);
@@ -94,6 +98,7 @@ export default class DriverEndTrip extends Action {
       passengerProceeded: null,
       driverKey: null,
       pendingOrder: null,
+      driverArrived: null,
     }));
 
     response.add(new TextResponse({ message: driverSummaryMessage }));
@@ -105,7 +110,7 @@ export default class DriverEndTrip extends Action {
         arg: {
           expectedState: {},
           message: passengerSummaryMessage,
-          path: 'select-user-type',
+          path: 'passenger-rate-driver',
         },
       }));
     }
