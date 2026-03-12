@@ -65,8 +65,7 @@ export default class RequestPhone extends Action {
 
     switch (this.user.state.userType) {
       case 'driver':
-        response.add(new UserStateResponse({ vehicleType: 'car' }));
-        response.add(new RedirectResponse({ path: 'driver-explain-checkins' }));
+        response.add(new RedirectResponse({ path: 'driver-select-vehicle-type' }));
         break;
       case 'passenger':
         response.add(new TextResponse({ message: this.t('all_set') }));

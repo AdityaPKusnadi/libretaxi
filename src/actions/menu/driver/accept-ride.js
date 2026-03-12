@@ -182,7 +182,7 @@ export default class DriverAcceptRide extends Action {
           arg: {
             expectedState: {},
             message: '🔵 Your driver has arrived at the pickup point!\nPlease proceed to your vehicle 🚗',
-            path: null,
+            path: 'blank-screen',
           },
         }))
         .add(new TextResponse({ message: '👌 Rider has been notified that you arrived.' }))

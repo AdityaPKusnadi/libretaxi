@@ -61,15 +61,15 @@ export default class SelectUserType extends Action {
       }))
       .add(new If({
         condition: new Equals(value, 'driver'),
-        ok: this.user.state.phone
+        ok: (this.user.state.phone && this.user.state.driverName)
           ? new CompositeResponse()
-              .add(new UserStateResponse({ userType: 'driver', vehicleType: 'car' }))
+              .add(new UserStateResponse({ userType: 'driver' }))
               .add(new TextResponse({ message: '👌 Welcome back, driver!' }))
               .add(new RedirectResponse({ path: 'driver-index' }))
           : new CompositeResponse()
               .add(new UserStateResponse({ userType: 'driver' }))
               .add(new TextResponse({ message: '👌 OK!' }))
-              .add(new RedirectResponse({ path: 'request-phone' })),
+              .add(new RedirectResponse({ path: this.user.state.phone ? 'driver-select-vehicle-type' : 'request-phone' })),
       }))
       .add(new If({
         condition: new Equals(value, 'update-location'),
