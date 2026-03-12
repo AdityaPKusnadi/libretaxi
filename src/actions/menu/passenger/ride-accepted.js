@@ -7,6 +7,7 @@ import UserStateResponse from '../../../responses/user-state-response';
 import OptionsResponse from '../../../responses/options-response';
 import CallActionResponse from '../../../responses/call-action-response';
 import CancelCurrentOrderResponse from '../../../responses/cancel-current-order-response';
+import { logTripToOracle } from '../../../support/oracle-logger';
 
 export default class PassengerRideAccepted extends Action {
   constructor(options) {
@@ -74,6 +75,19 @@ export default class PassengerRideAccepted extends Action {
     }
 
     if (value === 'cancel' || (value && value.includes('Cancel'))) {
+      const riderName = (this.user.state.identity
+        && (this.user.state.identity.first || this.user.state.identity.username)) || 'Rider';
+
+      logTripToOracle({
+        passengerName: riderName,
+        driverName: this.user.state.driverName || 'Driver',
+        driverPhone: this.user.state.driverPhone || 'N/A',
+        tripDistance: 0,
+        tripFare: 0,
+        rateDescription: 'Cancelled by rider',
+        status: 'cancelled',
+      });
+
       const response = new CompositeResponse()
         .add(new TextResponse({ message: '\u274C Booking cancelled.' }));
 

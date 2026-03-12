@@ -66,7 +66,7 @@ export default class SelectUserType extends Action {
       }))
       .add(new If({
         condition: new Equals(value, 'driver'),
-        ok: (this.user.state.phone && this.user.state.driverName)
+        ok: (this.user.state.phone && this.user.state.driverName && this.user.state.vehiclePlate)
           ? new CompositeResponse()
               .add(new UserStateResponse({ userType: 'driver' }))
               .add(new TextResponse({ message: '\u{1F44C} Welcome back, driver!' }))
