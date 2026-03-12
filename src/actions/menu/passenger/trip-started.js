@@ -11,12 +11,10 @@ export default class PassengerTripStarted extends Action {
   }
 
   get() {
-    // Required but bypassed mostly
     return new TextResponse({ message: 'Trip started.' });
   }
 
   call(args) {
-    // Normally Called via CallActionResponse directly with args
     if (args && args.started) {
       return new CompositeResponse()
         .add(new InterruptPromptResponse())
@@ -24,9 +22,9 @@ export default class PassengerTripStarted extends Action {
           tripStatus: 'in_progress',
         }))
         .add(new TextResponse({ 
-          message: `🚕 Trip Started!\n\nThe driver has marked the trip as started and is heading to your destination. Have a safe ride!`
+          message: `\u{1F7E2} Trip has started!\nSit back and enjoy your ride \u{1F695}`
         }))
-        .add(new RedirectResponse({ path: 'blank-screen' })); // Keep screen blank
+        .add(new RedirectResponse({ path: 'blank-screen' }));
     }
     return super.call(args);
   }

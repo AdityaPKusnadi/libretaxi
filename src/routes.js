@@ -56,6 +56,8 @@ import DriverStartTrip from './actions/menu/driver/start-trip';
 import DriverEndTrip from './actions/menu/driver/end-trip';
 import ExplainCheckins from './actions/menu/driver/explain-checkins';
 import SelectVehicleType from './actions/menu/driver/select-vehicle-type';
+import DriverEnterName from './actions/menu/driver/enter-name';
+import DriverEnterPlate from './actions/menu/driver/enter-plate';
 import PassengerRideAccepted from './actions/menu/passenger/ride-accepted';
 import PassengerTripStarted from './actions/menu/passenger/trip-started';
 import PassengerRateDriver from './actions/menu/passenger/rate-driver';
@@ -78,6 +80,8 @@ const routes = {
   'order-cancelled': (...args) => new OrderCancelled(...args),
   redirect: (...args) => new Redirect(...args),
   'driver-select-vehicle-type': (...args) => new SelectVehicleType(...args),
+  'driver-enter-name': (...args) => new DriverEnterName(...args),
+  'driver-enter-plate': (...args) => new DriverEnterPlate(...args),
   'driver-explain-checkins': (...args) => new ExplainCheckins(...args),
   'driver-request-location': (options) => new ParsedLocation(
     options,

@@ -26,19 +26,22 @@ export default class PassengerRideAccepted extends Action {
           tripStatus: 'accepted',
           driverPhone: args.driverPhone,
           driverKey: args.driverKey,
+          driverName: args.driverName || 'Driver',
+          driverVehicle: args.driverVehicle || 'Car',
+          driverPlate: args.driverPlate || 'N/A',
           rideDistanceKm: args.distanceKm,
           rideFareFormat: args.fareFormat,
         }))
         .add(new TextResponse({ 
-          message: `🚕 A driver has accepted your ride!\n\n` +
-                   `📏 Estimated Distance: ${args.distanceKm} km\n` +
-                   `💰 Estimated Fare: ${args.fareFormat}\n\n` +
+          message: `\u{1F695} A driver has accepted your ride!\n\n` +
+                   `\u{1F4CF} Estimated Distance: ${args.distanceKm} km\n` +
+                   `\u{1F4B0} Estimated Fare: ${args.fareFormat}\n\n` +
                    `Would you like to confirm this booking?`
         }))
         .add(new OptionsResponse({
           rows: [
-            [{ label: '🟢 Confirm Booking', value: 'confirm' }],
-            [{ label: '🔴 Cancel Booking', value: 'cancel' }],
+            [{ label: 'Confirm Booking \u2705', value: 'confirm' }],
+            [{ label: 'Cancel Booking \u274C', value: 'cancel' }],
           ],
         }));
     }
@@ -50,7 +53,13 @@ export default class PassengerRideAccepted extends Action {
 
     if (value === 'confirm' || (value && value.includes('Confirm'))) {
       const response = new CompositeResponse()
-        .add(new TextResponse({ message: '✅ Booking confirmed!' }));
+        .add(new TextResponse({
+          message: `\u2705 Ride Confirmed!\n\n` +
+                   `\u{1F696} Driver: ${this.user.state.driverName || 'Driver'}\n` +
+                   `\u{1F697} Vehicle: ${this.user.state.driverVehicle || 'Car'} \u2014 ${this.user.state.driverPlate || 'N/A'}\n` +
+                   `\u{1F4DE} Contact: ${this.user.state.driverPhone || 'N/A'}\n\n` +
+                   `Your driver is on the way \u{1F7E2}`
+        }));
 
       if (driverKey) {
         response.add(new CallActionResponse({
@@ -60,18 +69,13 @@ export default class PassengerRideAccepted extends Action {
         }));
       }
 
-      response.add(new TextResponse({
-        message: `🚘 Driver Contact: ${this.user.state.driverPhone || 'N/A'}\n\n` +
-                 `Your driver is on the way to your pickup location. Please wait!`
-      }));
-
       response.add(new RedirectResponse({ path: 'blank-screen' }));
       return response;
     }
 
     if (value === 'cancel' || (value && value.includes('Cancel'))) {
       const response = new CompositeResponse()
-        .add(new TextResponse({ message: '❌ Booking cancelled.' }));
+        .add(new TextResponse({ message: '\u274C Booking cancelled.' }));
 
       if (driverKey) {
         response.add(new CallActionResponse({
@@ -79,7 +83,7 @@ export default class PassengerRideAccepted extends Action {
           route: 'show-message',
           arg: {
             expectedState: {},
-            message: '❌ Rider has cancelled the booking. You are now available for new rides.',
+            message: '\u274C Rider has cancelled the booking. You are now available for new rides.',
             path: 'driver-index',
           },
         }));
@@ -100,8 +104,8 @@ export default class PassengerRideAccepted extends Action {
       .add(new TextResponse({ message: 'Please choose Confirm Booking or Cancel Booking.' }))
       .add(new OptionsResponse({
         rows: [
-          [{ label: '🟢 Confirm Booking', value: 'confirm' }],
-          [{ label: '🔴 Cancel Booking', value: 'cancel' }],
+          [{ label: 'Confirm Booking \u2705', value: 'confirm' }],
+          [{ label: 'Cancel Booking \u274C', value: 'cancel' }],
         ],
       }));
   }

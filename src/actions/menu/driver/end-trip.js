@@ -43,8 +43,12 @@ export default class DriverEndTrip extends Action {
 
     let distanceKm = fare.distanceKm || 0;
     let finalFare = fare;
+    const tripStarted = !!this.user.state.tripStartedAt;
 
-    if (pickup && endLocation) {
+    if (!tripStarted) {
+      distanceKm = 0;
+      finalFare = calculateFareFromDistance(0);
+    } else if (pickup && endLocation) {
       const dist = calculateDistance(pickup, endLocation);
       distanceKm = dist.km;
       finalFare = calculateFareFromDistance(distanceKm);
@@ -63,15 +67,10 @@ export default class DriverEndTrip extends Action {
     const rateDesc = finalFare.rateDescription || `First 3.0 km = LKR 300, then LKR 100/km`;
 
     const passengerSummaryLines = [];
-    passengerSummaryLines.push('✅ Connect — Trip Completed!');
+    passengerSummaryLines.push('\u2705 Trip Completed!');
     passengerSummaryLines.push('');
-    passengerSummaryLines.push(`👤 Rider: ${riderName}`);
-    passengerSummaryLines.push(`🚘 Driver: ${driverPhone}`);
-    passengerSummaryLines.push(`📏 Distance: ${distanceKm} km`);
-    passengerSummaryLines.push(`💵 Rate: ${rateDesc}`);
-    passengerSummaryLines.push(`💰 Total Fare: ${finalFare.currencySymbol || 'LKR '}${finalFare.totalFare || 0}`);
-    passengerSummaryLines.push('');
-    passengerSummaryLines.push('Thank you for using Connect!');
+    passengerSummaryLines.push(`\u{1F4CF} Distance: ${distanceKm} km`);
+    passengerSummaryLines.push(`\u{1F4B0} Final Fare: ${finalFare.currencySymbol || 'LKR '}${finalFare.totalFare || 0}`);
 
     const driverSummaryLines = [];
     driverSummaryLines.push('✅ Connect — Trip Completed!');

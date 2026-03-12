@@ -82,6 +82,11 @@ export default class DriverAcceptRide extends Action {
             rideNumDisplay,
             driverPhone: this.user.state.phone || 'N/A',
             driverKey: this.user.userKey,
+            driverName: this.user.state.identity
+              ? `${this.user.state.identity.first || ''} ${this.user.state.identity.last || ''}`.trim() || 'Driver'
+              : 'Driver',
+            driverVehicle: this.user.state.vehicleType || 'Car',
+            driverPlate: this.user.state.vehiclePlate || 'N/A',
           },
         }))
         .add(new UserStateResponse({ 
@@ -111,11 +116,21 @@ export default class DriverAcceptRide extends Action {
     const order = this.user.state.currentOrder || {};
     const pickup = order.passengerLocation;
     const dropoff = order.destinationLocation;
+    const fare = order.calculatedFare || {};
+    const riderName = order.passengerName || 'Rider';
 
     const response = new CompositeResponse();
 
+    const fareDisplay = fare.totalFare
+      ? `${fare.currencySymbol || 'LKR '}${fare.totalFare}`
+      : 'N/A';
+
     response.add(new TextResponse({
-      message: `📍 Pickup and 🏁 Drop-off locations\nare shared below.\n\nTap on the locations to open in Google Maps and navigate.`,
+      message: `🚖 Ride Confirmed!\n\n` +
+               `👤 Rider: ${riderName}\n` +
+               `📏 Distance: ${fare.distanceKm || 'N/A'} km\n` +
+               `💰 Fare: ${fareDisplay}\n\n` +
+               `Tap on the locations below to open in Google Maps and navigate.`,
     }));
 
     response.add(new TextResponse({ message: `📍 PICKUP location:` }));
@@ -134,7 +149,7 @@ export default class DriverAcceptRide extends Action {
       }));
       response.add(new OptionsResponse({
         rows: [
-          [{ label: '🟢 Start Trip', value: 'start-trip' }],
+          [{ label: 'START TRIP 🟢', value: 'start-trip' }],
         ],
       }));
     } else {
@@ -143,7 +158,7 @@ export default class DriverAcceptRide extends Action {
       }));
       response.add(new OptionsResponse({
         rows: [
-          [{ label: '🔵 Arrived', value: 'arrived' }],
+          [{ label: 'ARRIVED 🔵', value: 'arrived' }],
         ],
       }));
     }
@@ -166,7 +181,7 @@ export default class DriverAcceptRide extends Action {
           route: 'show-message',
           arg: {
             expectedState: {},
-            message: '🔵 Your driver has arrived at the pickup location!',
+            message: '🔵 Your driver has arrived at the pickup point!\nPlease proceed to your vehicle 🚗',
             path: null,
           },
         }))

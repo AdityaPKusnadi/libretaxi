@@ -1,7 +1,6 @@
 import Action from '../../../action';
 import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
-import InterruptPromptResponse from '../../../responses/interrupt-prompt-response';
 import RedirectResponse from '../../../responses/redirect-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import OptionsResponse from '../../../responses/options-response';
@@ -14,15 +13,15 @@ export default class PassengerRateDriver extends Action {
 
   get() {
     return new CompositeResponse()
-      .add(new TextResponse({ message: '⭐ How would you rate your driver?' }))
+      .add(new TextResponse({ message: 'Please rate your driver:' }))
       .add(new OptionsResponse({
         rows: [
           [
-            { label: '1 ⭐', value: '1' },
-            { label: '2 ⭐', value: '2' },
-            { label: '3 ⭐', value: '3' },
-            { label: '4 ⭐', value: '4' },
-            { label: '5 ⭐', value: '5' },
+            { label: '\u2B50\uFE0F1', value: '1' },
+            { label: '\u2B50\uFE0F2', value: '2' },
+            { label: '\u2B50\uFE0F3', value: '3' },
+            { label: '\u2B50\uFE0F4', value: '4' },
+            { label: '\u2B50\uFE0F5', value: '5' },
           ],
         ],
       }));
@@ -36,11 +35,11 @@ export default class PassengerRateDriver extends Action {
         .add(new OptionsResponse({
           rows: [
             [
-              { label: '1 ⭐', value: '1' },
-              { label: '2 ⭐', value: '2' },
-              { label: '3 ⭐', value: '3' },
-              { label: '4 ⭐', value: '4' },
-              { label: '5 ⭐', value: '5' },
+              { label: '\u2B50\uFE0F1', value: '1' },
+              { label: '\u2B50\uFE0F2', value: '2' },
+              { label: '\u2B50\uFE0F3', value: '3' },
+              { label: '\u2B50\uFE0F4', value: '4' },
+              { label: '\u2B50\uFE0F5', value: '5' },
             ],
           ],
         }));
@@ -57,7 +56,6 @@ export default class PassengerRateDriver extends Action {
           timestamp: Date.now(),
         });
       } catch (e) {
-        // silently fail
       }
     }
 
@@ -67,7 +65,7 @@ export default class PassengerRateDriver extends Action {
         driverPhone: null,
         driverKey: null,
       }))
-      .add(new TextResponse({ message: `Thank you for your ${rating} ⭐ rating!` }))
+      .add(new TextResponse({ message: `Thank you for your ${rating} \u2B50\uFE0F rating!` }))
       .add(new RedirectResponse({ path: 'select-user-type' }));
   }
 }

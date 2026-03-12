@@ -57,15 +57,12 @@ export default class PassengerConfirmFare extends Action {
     const rideNumStr = String(Math.floor(Math.random() * 100) + 1).padStart(2, '0');
 
     const lines = [];
-    lines.push(`Ride #${rideNumStr} created ✅`);
+    lines.push('\u{1F695} Trip Estimate');
     lines.push('');
-    lines.push(`Estimated distance: ${fare.distanceKm} km`);
-    lines.push(`Estimated fare: ~${fare.currencySymbol}${fare.totalFare}`);
+    lines.push(`\u{1F4CF} Distance: ~${fare.distanceKm} km`);
+    lines.push(`\u{1F4B0} Estimated Fare: ${fare.currencySymbol}${fare.totalFare}`);
     lines.push('');
-    lines.push(`Pickup: ${pickupLink}`);
-    lines.push(`Drop-off: ${dropoffLink}`);
-    lines.push('');
-    lines.push('Finding nearby drivers now...');
+    lines.push('Finding a driver nearby... please wait.');
 
     const priceStr = String(fare.totalFare || 0);
     const orderKey = uuid.v4();

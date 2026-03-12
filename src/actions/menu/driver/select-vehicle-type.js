@@ -73,7 +73,7 @@ export default class SelectVehicleType extends Action {
       case 'car':
         response.add(new TextResponse({ message: '👌 OK!' }));
         response.add(new UserStateResponse({ vehicleType: value }));
-        response.add(new RedirectResponse({ path: 'driver-explain-checkins' }));
+        response.add(new RedirectResponse({ path: 'driver-enter-name' }));
         break;
       default:
         response.add(new ErrorResponse({ message: this.t('error_only_known_type') }));

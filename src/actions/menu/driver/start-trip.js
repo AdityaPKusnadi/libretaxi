@@ -38,10 +38,10 @@ export default class DriverStartTrip extends Action {
     const lines = [];
     lines.push('🚕 Trip Started!');
     lines.push('');
-    lines.push(`✏ Distance: ${fare.distanceKm || 0} km`);
+    lines.push(`📏 Distance: ${fare.distanceKm || 0} km`);
     lines.push(`💰 Fare: ${fare.currencySymbol || 'LKR '}${fare.totalFare || 0}`);
     lines.push('');
-    lines.push('When you arrive at the destination, tap the 🔴 End Trip button below to share your location and end the trip.');
+    lines.push('When you arrive at the destination, tap END TRIP 🔴 to share your location and end the trip.');
 
     return new CompositeResponse()
       .add(new CallActionResponse({
@@ -55,7 +55,7 @@ export default class DriverStartTrip extends Action {
       }))
       .add(new TextResponse({ message: lines.join('\n') }))
       .add(new RequestLocationResponse({
-        buttonText: '🔴 End Trip 📍',
+        buttonText: 'END TRIP 🔴',
       }));
   }
 
@@ -65,6 +65,6 @@ export default class DriverStartTrip extends Action {
         .add(new UserStateResponse({ tripEndLocation: value }))
         .add(new RedirectResponse({ path: 'driver-end-trip' }));
     }
-    return new TextResponse({ message: 'Please share your location to end the trip by tapping the 🔴 End Trip button.' });
+    return new TextResponse({ message: 'Please share your location to end the trip by tapping the END TRIP 🔴 button.' });
   }
 }
