@@ -47,6 +47,17 @@ export default class DriverAcceptRide extends Action {
     }
 
     if (args && args.orderKey) {
+      if (!this.user.state.pendingOrder || this.user.state.pendingOrder !== args.orderKey) {
+        return new CompositeResponse()
+          .add(new InterruptPromptResponse())
+          .add(new TextResponse({ message: '⏰ This ride request has expired and was sent to another driver.' }))
+          .add(new UserStateResponse({
+            pendingOrder: null,
+            currentOrder: null,
+          }))
+          .add(new RedirectResponse({ path: 'driver-index' }));
+      }
+
       this.user.state.currentOrder = args;
       
       const distanceKm = args.calculatedFare ? args.calculatedFare.distanceKm : 'N/A';
@@ -54,7 +65,10 @@ export default class DriverAcceptRide extends Action {
       const rideNumDisplay = args.rideNum ? args.rideNum : '##';
 
       new Order({ orderKey: args.orderKey }).load().then((order) => {
-        order.setState({ status: 'accepted' });
+        if (order.state.status !== 'new') {
+          return;
+        }
+        order.setState({ status: 'accepted', acceptedBy: this.user.userKey });
         order.save();
       }).catch(() => {});
       

@@ -22,7 +22,7 @@ import firebaseDB from '../../firebase-db';
 import Order from '../../order';
 import { loadUser } from '../../factories/user-factory';
 import log from '../../log';
-import NotifyDriver from '../support/notify-driver';
+import CaQueue from '../../queue/ca-queue';
 import Settings from '../../../settings';
 
 const COLLECT_WINDOW_MS = 3000;
@@ -35,6 +35,7 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
     super(Object.assign({ type: 'notify-drivers-response-handler' }, options));
     this.settings = options.settings || new Settings();
     this.notifiedForOrder = {};
+    this.currentAssignedDriver = null;
   }
 
   ensureInitialized() {
@@ -76,6 +77,18 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
       log.debug(`collected ${candidates.length} driver candidates for order ${this.orderKey}`);
       this.tryNotifyFromList(candidates, 0);
     }, COLLECT_WINDOW_MS);
+  }
+
+  clearPreviousDriver() {
+    if (this.currentAssignedDriver) {
+      log.debug(`clearing pendingOrder from previous driver: ${this.currentAssignedDriver}`);
+      try {
+        firebaseDB.config().ref(`users/${this.currentAssignedDriver}/pendingOrder`).remove();
+      } catch (e) {
+        log.debug(`error clearing pendingOrder: ${e}`);
+      }
+      this.currentAssignedDriver = null;
+    }
   }
 
   tryNotifyFromList(candidates, index) {
@@ -130,15 +143,21 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
 
         log.debug(`notifying closest eligible driver: ${c.userKey} (distance ${c.distance}) for order ${this.orderKey}`);
 
+        this.clearPreviousDriver();
+
         try {
           firebaseDB.config().ref(`users/${c.userKey}/pendingOrder`).set(order.orderKey);
         } catch (e) {
           log.debug(`error setting pendingOrder: ${e}`);
         }
 
+        order.setState({ assignedDriver: c.userKey });
+        order.save();
+
+        this.currentAssignedDriver = c.userKey;
         this.notifiedForOrder[c.userKey] = true;
 
-        const queue = new (require('../../queue/ca-queue').default)();
+        const queue = new CaQueue();
         const arg = {
           orderKey: order.orderKey,
           distance: c.distance,
@@ -169,6 +188,7 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
 
       if (retryCount >= MAX_RETRIES) {
         log.debug(`driver search retry limit reached for order ${this.orderKey}`);
+        this.clearPreviousDriver();
         clearInterval(this.retryTimer);
         return;
       }
@@ -182,6 +202,7 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
 
         if ((new Date()).getTime() > (order.state.createdAt || 0) + 15 * 60 * 1000) {
           log.debug(`order ${this.orderKey} is stale, stopping retry`);
+          this.clearPreviousDriver();
           clearInterval(this.retryTimer);
           return;
         }
