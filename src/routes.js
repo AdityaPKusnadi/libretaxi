@@ -61,6 +61,7 @@ import DriverEnterPlate from './actions/menu/driver/enter-plate';
 import PassengerRideAccepted from './actions/menu/passenger/ride-accepted';
 import PassengerTripStarted from './actions/menu/passenger/trip-started';
 import PassengerRateDriver from './actions/menu/passenger/rate-driver';
+import PassengerSelectVehicle from './actions/menu/passenger/select-vehicle';
 
 const routes = {
   default: (...args) => new SelectUserType(...args),
@@ -68,6 +69,7 @@ const routes = {
   'select-user-type': (...args) => new SelectUserType(...args),
   'request-phone': (...args) => new RequestPhone(...args),
   'passenger-index': (...args) => new PassengerIndex(...args),
+  'passenger-select-vehicle': (...args) => new PassengerSelectVehicle(...args),
   foo: (...args) => new Foo(...args),
   settings: (...args) => new Foo(...args),
   'passenger-request-location': (options) => new ParsedLocation(

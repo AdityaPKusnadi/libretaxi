@@ -63,6 +63,11 @@ export default class NotifyDriver {
         return;
       }
 
+      if (user.state.blocked) {
+        fail('driver is blocked');
+        return;
+      }
+
       if (user.state.vehicleType !== order.state.requestedVehicleType) {
         fail('vehicle types don\'t match');
         return;

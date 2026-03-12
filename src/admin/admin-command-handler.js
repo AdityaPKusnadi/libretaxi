@@ -164,7 +164,17 @@ function cmdBlock(api, chatId, arg, block) {
       return;
     }
     const userKey = Object.keys(data)[0];
+    const telegramId = parseInt(userKey.replace('telegram_', ''), 10);
+    if (block && settings.ADMIN_IDS.indexOf(telegramId) !== -1) {
+      api.sendMessage(chatId, '❌ You cannot block an admin.');
+      return;
+    }
     db.ref(`users/${userKey}/blocked`).set(block);
+    if (!block) {
+      db.ref(`users/${userKey}/menuLocation`).set('driver-index');
+      db.ref(`users/${userKey}/pendingOrder`).set(null);
+      db.ref(`users/${userKey}/tripStatus`).set(null);
+    }
     api.sendMessage(chatId, `✅ User @${username} has been ${block ? 'blocked' : 'unblocked'}.`);
   });
   return true;

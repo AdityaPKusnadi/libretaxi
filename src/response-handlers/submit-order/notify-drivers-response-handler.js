@@ -120,6 +120,10 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
           this.tryNotifyFromList(candidates, index + 1);
           return;
         }
+        if (user.state.blocked) {
+          this.tryNotifyFromList(candidates, index + 1);
+          return;
+        }
         if (user.state.vehicleType !== order.state.requestedVehicleType) {
           this.tryNotifyFromList(candidates, index + 1);
           return;

@@ -31,8 +31,8 @@ export default class PassengerIndex extends Action {
   get() {
     return new CompositeResponse()
       .add(new UserStateResponse({ pendingSearchResults: null }))
-      .add(new TextResponse({ message: '🚕 Where would you like to go?\n\nPlease share your pickup location.' }))
-      .add(new RedirectResponse({ path: 'passenger-request-location' }));
+      .add(new TextResponse({ message: '\u{1F695} Where would you like to go?\n\nFirst, choose your vehicle type.' }))
+      .add(new RedirectResponse({ path: 'passenger-select-vehicle' }));
   }
 
   post(value) {
@@ -40,7 +40,6 @@ export default class PassengerIndex extends Action {
       return new RedirectResponse({ path: 'settings' });
     }
     return new CompositeResponse()
-      .add(new UserStateResponse({ requestedVehicleType: 'car' }))
-      .add(new RedirectResponse({ path: 'passenger-request-location' }));
+      .add(new RedirectResponse({ path: 'passenger-select-vehicle' }));
   }
 }

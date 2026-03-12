@@ -82,7 +82,7 @@ export default class PassengerConfirmFare extends Action {
         passengerName: (this.user.state.identity && (this.user.state.identity.first || this.user.state.identity.username)) || 'Rider',
         price: priceStr,
         createdAt: Firebase.database.ServerValue.TIMESTAMP,
-        requestedVehicleType: 'car',
+        requestedVehicleType: this.user.state.requestedVehicleType || 'car',
         calculatedFare: fare,
         destinationLocation: this.user.state.destinationLocation,
         rideNum: rideNumStr,
