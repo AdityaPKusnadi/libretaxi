@@ -77,6 +77,12 @@ export default function handleAdminCommand(api, msg) {
       return cmdRevenue(api, chatId);
     case '/setgroup':
       return cmdSetGroup(api, chatId, arg);
+    case '/setbotname':
+      return cmdSetBotName(api, chatId, arg);
+    case '/setwelcome':
+      return cmdSetWelcome(api, chatId, arg);
+    case '/settings':
+      return cmdShowSettings(api, chatId);
     default:
       return false;
   }
@@ -184,9 +190,13 @@ function cmdListUsers(api, chatId, userType) {
       const phone = u.phone || '';
 
       if (u.userType === 'driver') {
-        drivers.push(`• ${name} ${uname} | ${phone}`);
+        const vehicle = u.vehicleType || 'N/A';
+        const plate = u.vehiclePlate || 'N/A';
+        const blocked = u.blocked ? ' 🚫' : '';
+        drivers.push(`• ${name} ${uname}${blocked}\n  📞 ${phone} | 🚗 ${vehicle} | 🔢 ${plate}`);
       } else if (u.userType === 'passenger') {
-        riders.push(`• ${name} ${uname} ${phone ? '| ' + phone : ''}`);
+        const blocked = u.blocked ? ' 🚫' : '';
+        riders.push(`• ${name} ${uname}${blocked} ${phone ? '| 📞 ' + phone : ''}`);
       }
     });
 
@@ -226,7 +236,7 @@ async function cmdTrips(api, chatId, arg) {
     }
     
     let filterLabel = 'All';
-    let sql = `SELECT passenger_name, driver_name, trip_distance, trip_fare, created_at FROM trip_logs`;
+    let sql = `SELECT passenger_name, driver_name, trip_distance, trip_fare, created_at, NVL(status, 'completed') as status FROM trip_logs`;
     let binds = {};
     
     const period = (arg || '').toLowerCase().trim();
@@ -258,6 +268,7 @@ async function cmdTrips(api, chatId, arg) {
           distance: row[2] || 0,
           fare,
           date: new Date(row[4]).toLocaleDateString(),
+          status: row[5] === 'cancelled' ? '❌' : row[5] === 'in_progress' ? '⏳' : '✅',
         });
       });
     }
@@ -270,7 +281,7 @@ async function cmdTrips(api, chatId, arg) {
     const lines = [`📊 Trips — ${filterLabel} (${trips.length}):`];
     lines.push('');
     trips.slice(-20).forEach((t, i) => {
-      lines.push(`${i + 1}. ${t.rider} — ${t.distance} km — LKR ${t.fare} (${t.date})`);
+      lines.push(`${i + 1}. ${t.status} ${t.rider} \u2014 ${t.distance} km \u2014 LKR ${t.fare} (${t.date})`);
     });
     lines.push('');
     lines.push(`💰 Total Revenue: LKR ${totalRevenue}`);
@@ -325,10 +336,56 @@ async function cmdRevenue(api, chatId) {
 function cmdSetGroup(api, chatId, arg) {
   const groupId = arg.trim();
   if (!groupId) {
-    api.sendMessage(chatId, `❌ Usage: /setgroup [group_id]\nUse /groupid in a group to get the ID.`);
+    api.sendMessage(chatId, `\u274C Usage: /setgroup [group_id]\nUse /groupid in a group to get the ID.`);
     return true;
   }
   saveFareConfig({ tripLogGroupId: groupId });
-  api.sendMessage(chatId, `✅ Trip log group set to: ${groupId}`);
+  api.sendMessage(chatId, `\u2705 Trip log group set to: ${groupId}`);
+  return true;
+}
+
+function cmdSetBotName(api, chatId, arg) {
+  const name = arg.trim();
+  if (!name) {
+    api.sendMessage(chatId, `\u274C Usage: /setbotname [name]\nExample: /setbotname Idea Cabs`);
+    return true;
+  }
+  settings.BOT_NAME = name;
+  saveFareConfig({ botName: name });
+  api.sendMessage(chatId, `\u2705 Bot name updated to: ${name}`);
+  return true;
+}
+
+function cmdSetWelcome(api, chatId, arg) {
+  const msg = arg.trim();
+  if (!msg) {
+    api.sendMessage(chatId, `\u274C Usage: /setwelcome [message]\nExample: /setwelcome Welcome to Idea Cabs \u{1F695} Fast & simple taxi service in Colombo.`);
+    return true;
+  }
+  settings.WELCOME_MSG = msg;
+  saveFareConfig({ welcomeMsg: msg });
+  api.sendMessage(chatId, `\u2705 Welcome message updated to:\n${msg}`);
+  return true;
+}
+
+function cmdShowSettings(api, chatId) {
+  const config = loadFareConfig();
+  const radius = getRadius();
+  const lines = [
+    '\u2699\uFE0F Bot Settings:',
+    '',
+    `\u{1F4DB} Bot Name: ${settings.BOT_NAME || 'Connect'}`,
+    `\u{1F4AC} Welcome Message: ${settings.WELCOME_MSG || '(default)'}`,
+    '',
+    '\u{1F4B0} Fare Settings:',
+    `  Base Fare: LKR ${config.baseFare} (first ${config.baseKm} km)`,
+    `  Per-km Rate: LKR ${config.perKmRate}/km`,
+    '',
+    `\u{1F4CF} Driver Radius: ${radius} km`,
+    `\u{1F310} OSRM Endpoint: ${settings.OSRM_SERVER_URL}`,
+    `\u{1F5FA}\uFE0F Geocoding: ${settings.GEOCODING_PROVIDER}`,
+    `\u{1F4E2} Trip Log Group: ${settings.LOG_GROUP_ID || '(not set)'}`,
+  ];
+  api.sendMessage(chatId, lines.join('\n'));
   return true;
 }

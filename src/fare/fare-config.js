@@ -50,7 +50,7 @@ export function saveFareConfig(updates) {
   return merged;
 }
 
-export async function loadFareConfigFromRedis() { // keep name to prevent breaking changes in callers
+export async function loadFareConfigFromOracle() {
   try {
     const data = await getConfigFromOracle(ORACLE_KEY);
     if (!data) {
@@ -78,7 +78,7 @@ export function getRadius() {
   return cachedRadius;
 }
 
-export async function loadRadiusFromRedis(defaultRadius) { // keep name to prevent breaking changes
+export async function loadRadiusFromOracle(defaultRadius) {
   try {
     const data = await getConfigFromOracle(RADIUS_KEY);
     if (!data) {

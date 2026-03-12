@@ -36,6 +36,7 @@ export async function initOracleDb() {
             trip_distance NUMBER,
             trip_fare NUMBER,
             rate_description VARCHAR2(500),
+            status VARCHAR2(50) DEFAULT 'completed',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
           )
@@ -43,6 +44,8 @@ export async function initOracleDb() {
         await connection.execute(createTripLogsSql).catch(e => {
           if (e.errorNum !== 955) console.error(e);
         });
+
+        await connection.execute(`ALTER TABLE trip_logs ADD status VARCHAR2(50) DEFAULT 'completed'`).catch(() => {});
 
         // Table for configs
         const createConfigSql = `
@@ -88,8 +91,8 @@ export async function logTripToOracle(tripData) {
     try {
       const sql = `
         INSERT INTO trip_logs 
-        (passenger_name, driver_name, driver_phone, trip_distance, trip_fare, rate_description)
-        VALUES (:1, :2, :3, :4, :5, :6)
+        (passenger_name, driver_name, driver_phone, trip_distance, trip_fare, rate_description, status)
+        VALUES (:1, :2, :3, :4, :5, :6, :7)
       `;
       const binds = [
         tripData.passengerName || 'Rider',
@@ -97,7 +100,8 @@ export async function logTripToOracle(tripData) {
         tripData.driverPhone || 'N/A',
         tripData.tripDistance || 0,
         tripData.tripFare || 0,
-        tripData.rateDescription || ''
+        tripData.rateDescription || '',
+        tripData.status || 'completed'
       ];
       await connection.execute(sql, binds);
     } finally {

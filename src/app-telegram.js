@@ -27,7 +27,7 @@ import initLocale from './support/init-locale';
 import InlineButtonCallback from './response-handlers/common/inline-button-callback';
 import Settings from '../settings';
 import handleAdminCommand from './admin/admin-command-handler';
-import { loadFareConfigFromRedis, loadRadiusFromRedis } from './fare/fare-config';
+import { loadFareConfigFromOracle, loadRadiusFromOracle } from './fare/fare-config';
 
 const settings = new Settings();
 const api = new TelegramBot(settings.TELEGRAM_TOKEN, {
@@ -36,10 +36,12 @@ const api = new TelegramBot(settings.TELEGRAM_TOKEN, {
 });
 const queue = new CaQueue();
 
-loadFareConfigFromRedis().then(() => {
-  loadRadiusFromRedis(settings.MAX_RADIUS).then((radius) => {
+loadFareConfigFromOracle().then((config) => {
+  if (config.botName) settings.BOT_NAME = config.botName;
+  if (config.welcomeMsg) settings.WELCOME_MSG = config.welcomeMsg;
+  loadRadiusFromOracle(settings.MAX_RADIUS).then((radius) => {
     settings.MAX_RADIUS = radius;
-    console.log(`OK Connect bot is waiting for messages... (radius: ${radius} km)`);
+    console.log(`OK ${settings.BOT_NAME} bot is waiting for messages... (radius: ${radius} km)`);
   });
 });
 
