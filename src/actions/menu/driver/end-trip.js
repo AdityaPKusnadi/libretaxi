@@ -105,7 +105,7 @@ export default class DriverEndTrip extends Action {
         arg: {
           expectedState: {},
           message: passengerSummaryMessage,
-          path: 'passenger-index',
+          path: 'select-user-type',
         },
       }));
     }
