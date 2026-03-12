@@ -75,6 +75,7 @@ export default class DriverAcceptRide extends Action {
           menuLocation: 'driver-accept-ride',
           tripStatus: 'accepted',
           passengerProceeded: false,
+          pendingOrder: null,
         }))
         .add(new TextResponse({ message: '\u2705 Ride accepted!\n\nWaiting for rider to confirm...' }))
         .add(new RequestUserInputResponse());

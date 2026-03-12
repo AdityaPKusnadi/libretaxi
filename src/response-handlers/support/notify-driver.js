@@ -19,27 +19,10 @@
 import CaQueue from '../../queue/ca-queue';
 import { loadUser } from '../../factories/user-factory';
 import log from '../../log';
+import firebaseDB from '../../firebase-db';
 
-/**
- * Notify driver about order.
- *
- * @author Roman Pushkin (roman.pushkin@gmail.com)
- * @date 2016-12-03
- * @extends checkNotNull
- * @version 1.1
- * @since 0.1.0
- */
 export default class NotifyDriver {
 
-  /**
-   * Constructor.
-   *
-   * @type {Object}
-   * @param {Queue} options.queue - (optional) queue, {@link CaQueue} is used if not provided
-   * @param {function()} options.successCallback - (optional) callback to be executed on success
-   * @param {function(reason: string)} options.failCallback - (optional) callback to be executed
-   * with reason of fail
-   */
   constructor(options = {}) {
     this.queue = options.queue || new CaQueue();
     this.failCallback = options.failCallback || (() => {});
@@ -47,15 +30,6 @@ export default class NotifyDriver {
     this.loadUser = options.loadUser || loadUser;
   }
 
-  /**
-   * Load driver, check params and notify when matched.
-   * Keep in mind that geoFire is really simple library and it doesn't allow us to perform
-   * complex queries. So we have to manually check driver properties in our code.
-   *
-   * @param {string} options.driverKey - user to notify (ignored if not a driver).
-   * @param {number} options.distance - distance from driver to passenger (from geofire library)
-   * @param {Order} options.order - order
-   */
   call(driverKey, distance, order) {
     const fail = (reason) => {
       log.debug(`skip notifying ${driverKey} because ${reason}`);
@@ -68,7 +42,6 @@ export default class NotifyDriver {
       return;
     }
 
-    // if order was created more than 15 mins ago
     if ((new Date()).getTime() > (order.state.createdAt || 0) + 15 * 60 * 1000) {
       fail('order is stale');
       return;
@@ -95,7 +68,6 @@ export default class NotifyDriver {
         return;
       }
 
-      // ignore if driver is busy
       if (user.state.menuLocation !== 'driver-index') {
         fail('driver is busy');
         return;
@@ -106,13 +78,23 @@ export default class NotifyDriver {
         return;
       }
 
+      if (user.state.pendingOrder) {
+        fail('driver already has a pending order');
+        return;
+      }
+
       if (distance > user.state.radius * 1) {
         fail(`distance ${distance} is greater than driver's preferred radius ${user.state.radius}`);
         return;
       }
 
-      // matched everything, notify!
       log.debug(`notifying ${driverKey} (distance ${distance}) about the order`);
+
+      try {
+        firebaseDB.config().ref(`users/${driverKey}/pendingOrder`).set(order.orderKey);
+      } catch (e) {
+        log.debug(`error setting pendingOrder for ${driverKey}: ${e}`);
+      }
 
       const arg = {
         orderKey: order.orderKey,
@@ -126,7 +108,7 @@ export default class NotifyDriver {
         destinationLocation: order.state.destinationLocation || null,
         rideNum: order.state.rideNum || null,
       };
-      this.queue.create({ userKey: driverKey, arg, route: 'driver-order-new' }); // eslint-disable-line max-len
+      this.queue.create({ userKey: driverKey, arg, route: 'driver-order-new' });
 
       order.markNotified(driverKey);
       order.save();

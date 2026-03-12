@@ -93,6 +93,7 @@ export default class DriverEndTrip extends Action {
       currentOrder: null,
       passengerProceeded: null,
       driverKey: null,
+      pendingOrder: null,
     }));
 
     response.add(new TextResponse({ message: driverSummaryMessage }));
