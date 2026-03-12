@@ -169,27 +169,50 @@ function cmdListUsers(api, chatId, userType) {
   const usersRef = db.ref('users');
   usersRef.once('value', (snap) => {
     const data = snap.val() || {};
-    const users = [];
+    const drivers = [];
+    const riders = [];
+    let blockedCount = 0;
+
     Object.keys(data).forEach((key) => {
       const u = data[key];
-      if (userType && u.userType !== userType) return;
-      const name = u.identity
-        ? `${u.identity.first || ''} ${u.identity.last || ''}`.trim()
-        : key;
+      if (u.blocked) blockedCount++;
+
+      const name = u.driverName
+        || (u.identity ? `${u.identity.first || ''} ${u.identity.last || ''}`.trim() : '')
+        || key;
       const uname = u.identity && u.identity.username ? `@${u.identity.username}` : '';
-      const type = u.userType || 'unknown';
-      users.push(`• ${name} ${uname} (${type})`);
+      const phone = u.phone || '';
+
+      if (u.userType === 'driver') {
+        drivers.push(`• ${name} ${uname} | ${phone}`);
+      } else if (u.userType === 'passenger') {
+        riders.push(`• ${name} ${uname} ${phone ? '| ' + phone : ''}`);
+      }
     });
 
-    if (users.length === 0) {
-      api.sendMessage(chatId, `No ${userType || ''}users found.`);
-      return;
+    if (userType === 'driver') {
+      if (drivers.length === 0) {
+        api.sendMessage(chatId, 'No registered drivers found.');
+        return;
+      }
+      api.sendMessage(chatId, `🚗 Registered Drivers (${drivers.length}):\n\n${drivers.join('\n')}`);
+    } else if (userType === 'passenger') {
+      if (riders.length === 0) {
+        api.sendMessage(chatId, 'No registered riders found.');
+        return;
+      }
+      api.sendMessage(chatId, `🚕 Registered Riders (${riders.length}):\n\n${riders.join('\n')}`);
+    } else {
+      const lines = [
+        '📋 User Summary:',
+        '',
+        `🚗 Drivers: ${drivers.length}`,
+        `🚕 Riders: ${riders.length}`,
+        `🚫 Blocked: ${blockedCount}`,
+        `📊 Total: ${drivers.length + riders.length}`,
+      ];
+      api.sendMessage(chatId, lines.join('\n'));
     }
-
-    const title = userType
-      ? `📋 Registered ${userType}s (${users.length}):`
-      : `📋 All users (${users.length}):`;
-    api.sendMessage(chatId, `${title}\n\n${users.join('\n')}`);
   });
   return true;
 }

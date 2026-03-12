@@ -60,9 +60,7 @@ export default class DriverEndTrip extends Action {
 
     const riderName = order.passengerName || 'Rider';
     const driverPhone = this.user.state.phone || 'N/A';
-    const driverUsername = this.user.state.identity
-      ? `@${this.user.state.identity.username || 'driver'}`
-      : driverPhone;
+    const driverDisplayName = this.user.state.driverName || driverPhone;
 
     const rateDesc = finalFare.rateDescription || `First 3.0 km = LKR 300, then LKR 100/km`;
 
@@ -76,7 +74,7 @@ export default class DriverEndTrip extends Action {
     driverSummaryLines.push('✅ Connect — Trip Completed!');
     driverSummaryLines.push('');
     driverSummaryLines.push(`👤 Rider: ${riderName}`);
-    driverSummaryLines.push(`🚘 Driver: ${driverUsername}`);
+    driverSummaryLines.push(`🚘 Driver: ${driverDisplayName}`);
     driverSummaryLines.push(`📏 Distance: ${distanceKm} km`);
     driverSummaryLines.push(`💵 Rate: ${rateDesc}`);
     driverSummaryLines.push(`💰 Total Fare: ${finalFare.currencySymbol || 'LKR '}${finalFare.totalFare || 0}`);
@@ -120,7 +118,7 @@ export default class DriverEndTrip extends Action {
       // Log to Oracle DB
       logTripToOracle({
         passengerName: riderName,
-        driverName: driverUsername,
+        driverName: driverDisplayName,
         driverPhone: driverPhone,
         tripDistance: distanceKm,
         tripFare: finalFare.totalFare || 0,

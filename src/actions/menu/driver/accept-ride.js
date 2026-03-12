@@ -82,9 +82,7 @@ export default class DriverAcceptRide extends Action {
             rideNumDisplay,
             driverPhone: this.user.state.phone || 'N/A',
             driverKey: this.user.userKey,
-            driverName: this.user.state.identity
-              ? `${this.user.state.identity.first || ''} ${this.user.state.identity.last || ''}`.trim() || 'Driver'
-              : 'Driver',
+            driverName: this.user.state.driverName || 'Driver',
             driverVehicle: this.user.state.vehicleType || 'Car',
             driverPlate: this.user.state.vehiclePlate || 'N/A',
           },
