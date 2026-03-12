@@ -26,7 +26,7 @@ import If from '../../responses/if-response';
 import Equals from '../../conditions/equals';
 import NotIn from '../../conditions/not-in';
 import ErrorResponse from '../../responses/error-response';
-import Settings from '../../../settings';
+import loadFareConfig from '../../fare/fare-config';
 
 export default class SelectUserType extends Action {
 
@@ -35,9 +35,10 @@ export default class SelectUserType extends Action {
   }
 
   get() {
-    const s = new Settings();
-    const welcomeMsg = s.WELCOME_MSG
-      || `Welcome to ${s.BOT_NAME} \u{1F695}\n\nFast and simple taxi service.`;
+    const config = loadFareConfig();
+    const botName = config.botName || 'Connect';
+    const welcomeMsg = config.welcomeMsg
+      || `Welcome to ${botName} \u{1F695}\n\nFast and simple taxi service.`;
     return new CompositeResponse()
       .add(new TextResponse({ message: welcomeMsg }))
       .add(new OptionsResponse({
