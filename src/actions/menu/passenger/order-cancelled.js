@@ -48,6 +48,6 @@ export default class OrderCancelled extends Action {
   get() {
     return new CompositeResponse()
       .add(new TextResponse({ message: this.t('order_cancelled') }))
-      .add(new RedirectResponse({ path: 'passenger-index' }));
+      .add(new RedirectResponse({ path: 'select-user-type' }));
   }
 }

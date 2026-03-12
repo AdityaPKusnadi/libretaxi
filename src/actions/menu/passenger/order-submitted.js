@@ -74,7 +74,7 @@ export default class OrderSubmitted extends Action {
       return new CompositeResponse()
         .add(new TextResponse({ message: '👌 OK!' }))
         .add(new CancelCurrentOrderResponse())
-        .add(new RedirectResponse({ path: 'blank-screen' }));
+        .add(new RedirectResponse({ path: 'select-user-type' }));
     }
     return new ErrorResponse({ message: this.t('error_incorrect_input') });
   }
