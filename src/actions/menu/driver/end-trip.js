@@ -7,8 +7,8 @@ import CallActionResponse from '../../../responses/call-action-response';
 import { calculateFareFromDistance } from '../../../fare/fare-calculator';
 import calculateDistance from '../../../fare/distance-calculator';
 import Firebase from 'firebase-admin';
-import { logTripToOracle } from '../../../support/oracle-logger';
-import Settings from '../../../../settings';
+import { updateTripStatus } from '../../../support/oracle-logger';
+import { sendGroupLog, formatDate } from '../../../support/group-log';
 
 export default class DriverEndTrip extends Action {
 
@@ -51,14 +51,10 @@ export default class DriverEndTrip extends Action {
     const rateDesc = finalFare.rateDescription || `First 3.0 km = LKR 300, then LKR 100/km`;
     const fareAmount = finalFare.totalFare || 0;
     const currencySymbol = finalFare.currencySymbol || 'LKR ';
+    const rideNum = order.rideNum || '##';
 
-    const now = new Date();
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const dateStr = `[${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}]`;
-
-    const summaryLines = [
-      '\u2705 Connect \u2014 Trip Completed!',
+    const chatLines = [
+      `\u2705 Connect \u2014 Trip #${rideNum} Completed!`,
       '',
       `\u{1F464} Rider: ${riderUsername}`,
       `\u{1F698} Driver: ${driverUsername}`,
@@ -66,10 +62,21 @@ export default class DriverEndTrip extends Action {
       `\u{1F4B5} Rate: ${rateDesc}`,
       `\u{1F4B0} Total Fare: ${currencySymbol}${fareAmount}`,
       '',
-      dateStr,
+      'Thank you for using Connect!',
     ];
+    const chatMessage = chatLines.join('\n');
 
-    const summaryMessage = summaryLines.join('\n');
+    const groupLines = [
+      `\u2705 Connect \u2014 Trip #${rideNum} Completed!`,
+      '',
+      `\u{1F464} Rider: ${riderUsername}`,
+      `\u{1F698} Driver: ${driverUsername}`,
+      `\u{1F4CF} Distance: ${distanceKm} km`,
+      `\u{1F4B5} Rate: ${rateDesc}`,
+      `\u{1F4B0} Total Fare: ${currencySymbol}${fareAmount}`,
+      '',
+      formatDate(),
+    ];
 
     const response = new CompositeResponse();
 
@@ -85,7 +92,7 @@ export default class DriverEndTrip extends Action {
       driverArrived: null,
     }));
 
-    response.add(new TextResponse({ message: summaryMessage }));
+    response.add(new TextResponse({ message: chatMessage }));
 
     if (order.passengerKey) {
       response.add(new CallActionResponse({
@@ -93,7 +100,7 @@ export default class DriverEndTrip extends Action {
         route: 'show-message',
         arg: {
           expectedState: {},
-          message: summaryMessage,
+          message: chatMessage,
           path: 'passenger-rate-driver',
         },
       }));
@@ -101,34 +108,18 @@ export default class DriverEndTrip extends Action {
 
     response.add(new RedirectResponse({ path: 'driver-index' }));
 
-    try {
-      logTripToOracle({
-        passengerName: riderName,
-        driverName: driverUsername,
-        driverPhone: this.user.state.phone || 'N/A',
-        tripDistance: distanceKm,
-        tripFare: fareAmount,
-        rateDescription: rateDesc,
-        status: 'completed',
-      });
-    } catch (e) {
-      console.log(`Error saving trip to Oracle: ${e}`);
-    }
+    updateTripStatus(rideNum, {
+      status: 'completed',
+      driverName: driverUsername,
+      driverPhone: this.user.state.phone || 'N/A',
+      tripDistance: distanceKm,
+      tripFare: fareAmount,
+      rateDescription: rateDesc,
+    }).catch((e) => {
+      console.log(`Error updating trip status in Oracle: ${e}`);
+    });
 
-    const tripSettings = new Settings();
-    if (tripSettings.LOG_GROUP_ID) {
-      const tgApi = `https://api.telegram.org/bot${tripSettings.TELEGRAM_TOKEN}`;
-      fetch(`${tgApi}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: tripSettings.LOG_GROUP_ID,
-          text: summaryMessage,
-        }),
-      }).catch((e) => {
-        console.log(`Error sending trip log to group: ${e}`);
-      });
-    }
+    sendGroupLog(groupLines.join('\n'));
 
     return response;
   }

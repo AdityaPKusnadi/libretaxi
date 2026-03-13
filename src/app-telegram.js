@@ -121,6 +121,7 @@ api.on('message', (msg) => {
     if (something === '/cancelride') {
       const orderKey = user.state.currentOrderKey;
       const driverKey = user.state.driverKey;
+      const rideNum = user.state.rideNum || null;
 
       if (!orderKey && !driverKey && user.state.tripStatus !== 'accepted' && user.state.tripStatus !== 'in_progress') {
         api.sendMessage(msg.chat.id, 'You don\'t have an active ride to cancel.');
@@ -154,20 +155,26 @@ api.on('message', (msg) => {
         });
       }
 
-      try {
-        const { logTripToOracle } = require('./support/oracle-logger');
-        const riderName = (user.state.identity && (user.state.identity.first || user.state.identity.username)) || 'Rider';
-        logTripToOracle({
-          passengerName: riderName,
-          driverName: 'N/A',
-          driverPhone: 'N/A',
-          tripDistance: 0,
-          tripFare: 0,
-          rateDescription: 'N/A',
-          status: 'cancelled',
-        });
-      } catch (e) {
-        console.log(`Error logging cancelled trip: ${e}`);
+      if (rideNum) {
+        try {
+          const { updateTripStatus } = require('./support/oracle-logger');
+          updateTripStatus(rideNum, { status: 'cancelled' }).catch(() => {});
+        } catch (e) {
+          console.log(`Error updating cancelled trip: ${e}`);
+        }
+
+        const { sendGroupLog, formatDate } = require('./support/group-log');
+        const riderName = (user.state.identity && user.state.identity.username)
+          ? `@${user.state.identity.username}`
+          : (user.state.identity && user.state.identity.first) || 'Rider';
+        const groupLines = [
+          `\u274C Connect \u2014 Ride #${rideNum} Cancelled`,
+          '',
+          `\u{1F464} Rider: ${riderName}`,
+          '',
+          formatDate(),
+        ];
+        sendGroupLog(groupLines.join('\n'));
       }
 
       const firebaseDB = require('./firebase-db').default;
