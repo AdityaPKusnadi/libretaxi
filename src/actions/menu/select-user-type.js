@@ -70,14 +70,14 @@ export default class SelectUserType extends Action {
       .add(new If({
         condition: new Equals(value, 'update-location'),
         ok: new CompositeResponse()
-          .add(new TextResponse({ message: '\u{1F44C} OK!' }))
-          .add(new RedirectResponse({ path: 'driver-checkin' })),
+          .add(new RedirectResponse({ path: 'update-my-location' })),
       }))
       .add(new If({
         condition: new Equals(value, 'cancel-ride'),
         ok: this.user.state.currentOrderKey
           ? new CompositeResponse()
               .add(new TextResponse({ message: '\u274C Your current ride has been cancelled.' }))
+              .add(new CancelCurrentOrderResponse())
               .add(new UserStateResponse({
                 tripStatus: null,
                 currentOrderKey: null,
@@ -85,7 +85,6 @@ export default class SelectUserType extends Action {
                 driverKey: null,
                 driverPhone: null,
               }))
-              .add(new CancelCurrentOrderResponse())
               .add(new RedirectResponse({ path: 'select-user-type' }))
           : new CompositeResponse()
               .add(new TextResponse({ message: 'You don\'t have an active ride to cancel.' }))

@@ -23,6 +23,7 @@ import PassengerIndex from './actions/menu/passenger/index';
 import PassengerRequestLocation from './actions/menu/passenger/request-location';
 import PassengerRequestDestination from './actions/menu/passenger/request-destination';
 import Foo from './actions/menu/foo';
+import UpdateMyLocation from './actions/menu/update-my-location';
 import OrderSubmitted from './actions/menu/passenger/order-submitted';
 import BlankScreen from './actions/menu/blank-screen';
 import OrderCancelled from './actions/menu/passenger/order-cancelled';
@@ -121,6 +122,7 @@ const routes = {
   'passenger-ride-accepted': (...args) => new PassengerRideAccepted(...args),
   'passenger-trip-started': (...args) => new PassengerTripStarted(...args),
   'passenger-rate-driver': (...args) => new PassengerRateDriver(...args),
+  'update-my-location': (...args) => new UpdateMyLocation(...args),
 };
 
 export default routes;
