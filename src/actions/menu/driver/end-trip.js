@@ -8,6 +8,7 @@ import { calculateFareFromDistance } from '../../../fare/fare-calculator';
 import calculateDistance from '../../../fare/distance-calculator';
 import Firebase from 'firebase-admin';
 import { logTripToOracle } from '../../../support/oracle-logger';
+import Settings from '../../../../settings';
 
 export default class DriverEndTrip extends Action {
 
@@ -104,6 +105,24 @@ export default class DriverEndTrip extends Action {
       });
     } catch (e) {
       console.log(`Error saving trip to Oracle: ${e}`);
+    }
+
+    const tripSettings = new Settings();
+    if (tripSettings.LOG_GROUP_ID) {
+      const groupLines = [
+        '\u{1F4CB} Trip Log',
+        '',
+        `\u{1F464} Rider: ${riderName}`,
+        `\u{1F698} Driver: ${driverUsername}`,
+        `\u{1F4CF} Distance: ${distanceKm} km`,
+        `\u{1F4B0} Fare: ${currencySymbol}${fareAmount}`,
+        `\u2705 Status: Completed`,
+      ];
+      try {
+        this.api.sendMessage(tripSettings.LOG_GROUP_ID, groupLines.join('\n'));
+      } catch (e) {
+        console.log(`Error sending trip log to group: ${e}`);
+      }
     }
 
     return response;

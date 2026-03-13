@@ -68,9 +68,6 @@ export default function handleAdminCommand(api, msg) {
     '/setradius': { prompt: '\u{1F4CF} Enter the driver search radius in km (e.g. 10):', handler: 'setradius' },
     '/block': { prompt: '\u{1F6AB} Enter the username to block (e.g. @johndoe):', handler: 'block' },
     '/unblock': { prompt: '\u2705 Enter the username to unblock (e.g. @johndoe):', handler: 'unblock' },
-    '/setgroup': { prompt: '\u{1F4E2} Enter the group ID for trip logs:', handler: 'setgroup' },
-    '/setbotname': { prompt: '\u{1F4DB} Enter the new bot name:', handler: 'setbotname' },
-    '/setwelcome': { prompt: '\u{1F4AC} Enter the new welcome message:', handler: 'setwelcome' },
   };
 
   if (paramCommands[command] && !arg) {

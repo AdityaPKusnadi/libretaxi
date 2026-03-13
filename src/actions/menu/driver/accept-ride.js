@@ -2,12 +2,10 @@ import Action from '../../../action';
 import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
 import InterruptPromptResponse from '../../../responses/interrupt-prompt-response';
-import RequestUserInputResponse from '../../../responses/request-user-input-response';
 import OptionsResponse from '../../../responses/options-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import RedirectResponse from '../../../responses/redirect-response';
 import CallActionResponse from '../../../responses/call-action-response';
-import MapResponse from '../../../responses/map-response';
 import Order from '../../../order';
 
 export default class DriverAcceptRide extends Action {
@@ -17,14 +15,6 @@ export default class DriverAcceptRide extends Action {
   }
 
   call(args) {
-    if (args && args.showLocations) {
-      this.user.state.passengerProceeded = true;
-      return new CompositeResponse()
-        .add(new InterruptPromptResponse())
-        .add(new UserStateResponse({ passengerProceeded: true }))
-        .add(this._showLocations());
-    }
-
     if (args && args.orderKey) {
       if (!this.user.state.pendingOrder || this.user.state.pendingOrder !== args.orderKey) {
         return new CompositeResponse()
@@ -51,10 +41,14 @@ export default class DriverAcceptRide extends Action {
         order.save();
       }).catch(() => {});
 
-      const riderMsg = `\u2705 Ride #${rideNumDisplay} accepted!\n\n` +
-        `Driver: ${driverName}\n` +
-        `Contact: ${driverUsername}\n\n` +
-        `Please coordinate pickup in chat.`;
+      const pickup = args.passengerLocation;
+      const dropoff = args.destinationLocation;
+      const pickupLink = pickup ? `https://maps.google.com/?q=${pickup[0]},${pickup[1]}` : 'N/A';
+      const dropoffLink = dropoff ? `https://maps.google.com/?q=${dropoff[0]},${dropoff[1]}` : 'N/A';
+
+      const driverMsg = `\u2705 Ride #${rideNumDisplay} accepted!\n\n` +
+        `Pickup: ${pickupLink}\n` +
+        `Drop-off: ${dropoffLink}`;
 
       return new CompositeResponse()
         .add(new CallActionResponse({
@@ -74,42 +68,35 @@ export default class DriverAcceptRide extends Action {
           currentOrder: args,
           menuLocation: 'driver-accept-ride',
           tripStatus: 'accepted',
-          passengerProceeded: true,
           pendingOrder: null,
         }))
-        .add(new TextResponse({ message: `\u2705 Ride #${rideNumDisplay} accepted!\n\nLoading pickup and drop-off locations...` }))
-        .add(this._showLocations());
+        .add(new TextResponse({ message: driverMsg }))
+        .add(new OptionsResponse({
+          rows: [
+            [{ label: '\u{1F7E2} Start Trip', value: 'start-trip' }],
+          ],
+        }));
     }
 
     return super.call(args);
   }
 
   get() {
-    return this._showLocations();
-  }
-
-  _showLocations() {
     const order = this.user.state.currentOrder || {};
     const pickup = order.passengerLocation;
     const dropoff = order.destinationLocation;
+    const pickupLink = pickup ? `https://maps.google.com/?q=${pickup[0]},${pickup[1]}` : 'N/A';
+    const dropoffLink = dropoff ? `https://maps.google.com/?q=${dropoff[0]},${dropoff[1]}` : 'N/A';
 
-    const response = new CompositeResponse();
-
-    if (pickup) {
-      response.add(new MapResponse({ location: pickup }));
-    }
-
-    if (dropoff) {
-      response.add(new MapResponse({ location: dropoff }));
-    }
-
-    response.add(new OptionsResponse({
-      rows: [
-        [{ label: '\u{1F7E2} Start Trip', value: 'start-trip' }],
-      ],
-    }));
-
-    return response;
+    return new CompositeResponse()
+      .add(new TextResponse({
+        message: `Pickup: ${pickupLink}\nDrop-off: ${dropoffLink}`,
+      }))
+      .add(new OptionsResponse({
+        rows: [
+          [{ label: '\u{1F7E2} Start Trip', value: 'start-trip' }],
+        ],
+      }));
   }
 
   post(value) {

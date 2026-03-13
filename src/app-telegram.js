@@ -56,10 +56,6 @@ const adminCommands = [
   { command: 'groupid', description: 'Get group ID for logs' },
   { command: 'whoami', description: 'Show your sender ID' },
   { command: 'session', description: 'Session settings' },
-  { command: 'settings', description: 'All bot settings' },
-  { command: 'setgroup', description: 'Set trip log group' },
-  { command: 'setbotname', description: 'Set bot name' },
-  { command: 'setwelcome', description: 'Set welcome message' },
 ];
 
 const TG_API = `https://api.telegram.org/bot${settings.TELEGRAM_TOKEN}`;
@@ -95,6 +91,11 @@ settings.ADMIN_IDS.forEach((adminId) => {
 });
 
 api.on('message', (msg) => {
+  if (msg.chat.type !== 'private') {
+    if (handleAdminCommand(api, msg)) return;
+    return;
+  }
+
   api.sendChatAction(msg.chat.id, 'typing').catch(() => {});
 
   if (handleAdminCommand(api, msg)) return;
@@ -135,6 +136,13 @@ api.on('message', (msg) => {
       }
 
       if (driverKey) {
+        const firebaseDB = require('./firebase-db').default;
+        firebaseDB.config().ref(`users/${driverKey}`).update({
+          pendingOrder: null,
+          currentOrder: null,
+          tripStatus: null,
+          menuLocation: 'driver-index',
+        });
         queue.create({
           userKey: driverKey,
           arg: {
@@ -144,6 +152,22 @@ api.on('message', (msg) => {
           },
           route: 'show-message',
         });
+      }
+
+      try {
+        const { logTripToOracle } = require('./support/oracle-logger');
+        const riderName = (user.state.identity && (user.state.identity.first || user.state.identity.username)) || 'Rider';
+        logTripToOracle({
+          passengerName: riderName,
+          driverName: 'N/A',
+          driverPhone: 'N/A',
+          tripDistance: 0,
+          tripFare: 0,
+          rateDescription: 'N/A',
+          status: 'cancelled',
+        });
+      } catch (e) {
+        console.log(`Error logging cancelled trip: ${e}`);
       }
 
       const firebaseDB = require('./firebase-db').default;
