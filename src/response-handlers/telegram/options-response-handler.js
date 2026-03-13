@@ -55,7 +55,7 @@ export default class OptionsResponseHandler extends ResponseHandler {
     this.api.sendMessage(this.user.platformId, message,
       {
         disable_notification: true,
-        reply_markup: JSON.stringify({ keyboard: rows, one_time_keyboard: true }),
+        reply_markup: JSON.stringify({ keyboard: rows, one_time_keyboard: true, resize_keyboard: true }),
       }).catch(telegramErrors);
   }
 }
