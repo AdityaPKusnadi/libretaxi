@@ -19,6 +19,7 @@
 import ResponseHandler from './response-handler';
 import Order from '../order';
 import CaQueue from '../queue/ca-queue';
+import firebaseDB from '../firebase-db';
 import { updateTripStatus } from '../support/oracle-logger';
 import { sendGroupLog, formatDate } from '../support/group-log';
 
@@ -32,11 +33,32 @@ export default class CancelCurrentOrderResponseHandler extends ResponseHandler {
   call(onResult) {
     const orderKey = this.user.state.currentOrderKey;
     const rideNum = this.user.state.rideNum || null;
+    const fare = this.user.state.calculatedFare || {};
+    const vehicleType = this.user.state.requestedVehicleType || 'car';
 
     new Order({ orderKey }).load().then((order) => {
       if (order.status !== 'cancelled') {
         order.setState({ status: 'cancelled' });
         order.save(() => {
+          const assignedDriver = order.state.assignedDriver || null;
+          if (assignedDriver) {
+            firebaseDB.config().ref(`users/${assignedDriver}`).update({
+              pendingOrder: null,
+              currentOrder: null,
+              tripStatus: null,
+              menuLocation: 'driver-index',
+            });
+            this.queue.create({
+              userKey: assignedDriver,
+              arg: {
+                expectedState: {},
+                message: '\u274C Rider has cancelled the ride. You are now available for new rides.',
+                path: 'driver-index',
+              },
+              route: 'show-message',
+            });
+          }
+
           if (rideNum) {
             updateTripStatus(rideNum, { status: 'cancelled' }).catch(() => {});
 
@@ -47,6 +69,9 @@ export default class CancelCurrentOrderResponseHandler extends ResponseHandler {
               `\u274C Connect \u2014 Ride #${rideNum} Cancelled`,
               '',
               `\u{1F464} Rider: ${riderName}`,
+              `\u{1F4CF} Est. Distance: ${fare.distanceKm || 0} km`,
+              `\u{1F4B0} Est. Fare: ${fare.currencySymbol || 'LKR '}${fare.totalFare || 0}`,
+              `\u{1F697} Vehicle: ${vehicleType}`,
               '',
               formatDate(),
             ];

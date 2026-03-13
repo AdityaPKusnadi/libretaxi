@@ -167,10 +167,15 @@ api.on('message', (msg) => {
         const riderName = (user.state.identity && user.state.identity.username)
           ? `@${user.state.identity.username}`
           : (user.state.identity && user.state.identity.first) || 'Rider';
+        const fare = user.state.calculatedFare || {};
+        const vehicleType = user.state.requestedVehicleType || 'car';
         const groupLines = [
           `\u274C Connect \u2014 Ride #${rideNum} Cancelled`,
           '',
           `\u{1F464} Rider: ${riderName}`,
+          `\u{1F4CF} Est. Distance: ${fare.distanceKm || 0} km`,
+          `\u{1F4B0} Est. Fare: ${fare.currencySymbol || 'LKR '}${fare.totalFare || 0}`,
+          `\u{1F697} Vehicle: ${vehicleType}`,
           '',
           formatDate(),
         ];
