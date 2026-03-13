@@ -76,7 +76,7 @@ export default class DriverOrderNew extends Action {
       .add(new TextResponse({ message: lines.join('\n') }))
       .add(new InlineOptionsResponse({
         rows: [
-          [{ label: 'ACCEPT ✅', value: acceptGuid }],
+          [{ label: '\u{1F7E1} Accept', value: acceptGuid }],
         ],
         defaultMessage: 'Click to accept this ride',
       }))

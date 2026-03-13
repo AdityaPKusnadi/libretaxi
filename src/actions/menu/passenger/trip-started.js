@@ -16,13 +16,14 @@ export default class PassengerTripStarted extends Action {
 
   call(args) {
     if (args && args.started) {
+      const rideNum = args.rideNum || '##';
       return new CompositeResponse()
         .add(new InterruptPromptResponse())
         .add(new UserStateResponse({
           tripStatus: 'in_progress',
         }))
-        .add(new TextResponse({ 
-          message: `\u{1F7E2} Trip has started!\nSit back and enjoy your ride \u{1F695}`
+        .add(new TextResponse({
+          message: `\u{1F7E2} Your trip #${rideNum} has started.`,
         }))
         .add(new RedirectResponse({ path: 'blank-screen' }));
     }

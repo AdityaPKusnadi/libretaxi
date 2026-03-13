@@ -1,21 +1,3 @@
-/*
-    LibreTaxi, free and open source ride sharing platform.
-    Copyright (C) 2016-2017  Roman Pushkin
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation, either version 3 of the
-    License, or (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 import Action from '../../../action';
 import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
@@ -26,9 +8,6 @@ import UserStateResponse from '../../../responses/user-state-response';
 import RedirectResponse from '../../../responses/redirect-response';
 import CallActionResponse from '../../../responses/call-action-response';
 import MapResponse from '../../../responses/map-response';
-import If from '../../../responses/if-response';
-import Equals from '../../../conditions/equals';
-import NotIn from '../../../conditions/not-in';
 import Order from '../../../order';
 
 export default class DriverAcceptRide extends Action {
@@ -50,7 +29,7 @@ export default class DriverAcceptRide extends Action {
       if (!this.user.state.pendingOrder || this.user.state.pendingOrder !== args.orderKey) {
         return new CompositeResponse()
           .add(new InterruptPromptResponse())
-          .add(new TextResponse({ message: '⏰ This ride request has expired and was sent to another driver.' }))
+          .add(new TextResponse({ message: '\u23F0 This ride request has expired and was sent to another driver.' }))
           .add(new UserStateResponse({
             pendingOrder: null,
             currentOrder: null,
@@ -59,54 +38,53 @@ export default class DriverAcceptRide extends Action {
       }
 
       this.user.state.currentOrder = args;
-      
-      const distanceKm = args.calculatedFare ? args.calculatedFare.distanceKm : 'N/A';
-      const fareFormat = args.calculatedFare ? `${args.calculatedFare.currencySymbol || 'LKR '}${args.calculatedFare.totalFare}` : 'N/A';
+
       const rideNumDisplay = args.rideNum ? args.rideNum : '##';
+      const driverName = this.user.state.driverName || 'Driver';
+      const driverUsername = (this.user.state.identity && this.user.state.identity.username)
+        ? `@${this.user.state.identity.username}`
+        : this.user.state.phone || 'N/A';
 
       new Order({ orderKey: args.orderKey }).load().then((order) => {
-        if (order.state.status !== 'new') {
-          return;
-        }
+        if (order.state.status !== 'new') return;
         order.setState({ status: 'accepted', acceptedBy: this.user.userKey });
         order.save();
       }).catch(() => {});
-      
+
+      const riderMsg = `\u2705 Ride #${rideNumDisplay} accepted!\n\n` +
+        `Driver: ${driverName}\n` +
+        `Contact: ${driverUsername}\n\n` +
+        `Please coordinate pickup in chat.`;
+
       return new CompositeResponse()
         .add(new CallActionResponse({
           userKey: args.passengerKey,
           route: 'passenger-ride-accepted',
           arg: {
-            distanceKm,
-            fareFormat,
             rideNumDisplay,
             driverPhone: this.user.state.phone || 'N/A',
             driverKey: this.user.userKey,
-            driverName: this.user.state.driverName || 'Driver',
+            driverName,
+            driverUsername,
             driverVehicle: this.user.state.vehicleType || 'Car',
             driverPlate: this.user.state.vehiclePlate || 'N/A',
           },
         }))
-        .add(new UserStateResponse({ 
+        .add(new UserStateResponse({
           currentOrder: args,
           menuLocation: 'driver-accept-ride',
           tripStatus: 'accepted',
-          passengerProceeded: false,
+          passengerProceeded: true,
           pendingOrder: null,
         }))
-        .add(new TextResponse({ message: '\u2705 Ride accepted!\n\nWaiting for rider to confirm...' }))
-        .add(new RequestUserInputResponse());
+        .add(new TextResponse({ message: `\u2705 Ride #${rideNumDisplay} accepted!\n\nLoading pickup and drop-off locations...` }))
+        .add(this._showLocations());
     }
 
     return super.call(args);
   }
 
   get() {
-    if (!this.user.state.passengerProceeded) {
-      return new CompositeResponse()
-        .add(new TextResponse({ message: '✅ Ride accepted!\n\nWaiting for rider to confirm...' }))
-        .add(new RequestUserInputResponse());
-    }
     return this._showLocations();
   }
 
@@ -119,78 +97,32 @@ export default class DriverAcceptRide extends Action {
 
     const response = new CompositeResponse();
 
-    const fareDisplay = fare.totalFare
-      ? `${fare.currencySymbol || 'LKR '}${fare.totalFare}`
-      : 'N/A';
-
-    response.add(new TextResponse({
-      message: `🚖 Ride Confirmed!\n\n` +
-               `👤 Rider: ${riderName}\n` +
-               `📏 Distance: ${fare.distanceKm || 'N/A'} km\n` +
-               `💰 Fare: ${fareDisplay}\n\n` +
-               `Tap on the locations below to open in Google Maps and navigate.`,
-    }));
-
-    response.add(new TextResponse({ message: `📍 PICKUP location:` }));
+    response.add(new TextResponse({ message: `\u{1F4CD} PICKUP location:` }));
     if (pickup) {
       response.add(new MapResponse({ location: pickup }));
     }
 
-    response.add(new TextResponse({ message: `🏁 DROP-OFF location:` }));
+    response.add(new TextResponse({ message: `\u{1F3C1} DROP-OFF location:` }));
     if (dropoff) {
       response.add(new MapResponse({ location: dropoff }));
     }
 
-    if (this.user.state.driverArrived) {
-      response.add(new TextResponse({
-        message: `Rider has been notified that you arrived.\nWhen you are ready to go, tap Start Trip:`,
-      }));
-      response.add(new OptionsResponse({
-        rows: [
-          [{ label: 'START TRIP 🟢', value: 'start-trip' }],
-        ],
-      }));
-    } else {
-      response.add(new TextResponse({
-        message: `When you reach the rider, tap Arrived:`,
-      }));
-      response.add(new OptionsResponse({
-        rows: [
-          [{ label: 'ARRIVED 🔵', value: 'arrived' }],
-        ],
-      }));
-    }
+    response.add(new OptionsResponse({
+      rows: [
+        [{ label: '\u{1F7E2} Start Trip', value: 'start-trip' }],
+      ],
+    }));
 
     return response;
   }
 
   post(value) {
-    const isArrived = (value && typeof value === 'string' && 
-                       (value.includes('arrived') || value.includes('Arrived')));
-    const isStartTrip = (value && typeof value === 'string' && 
-                         (value.includes('start-trip') || value.includes('Start Trip')));
-
-    if (isArrived) {
-      const order = this.user.state.currentOrder || {};
-      return new CompositeResponse()
-        .add(new UserStateResponse({ driverArrived: true }))
-        .add(new CallActionResponse({
-          userKey: order.passengerKey,
-          route: 'show-message',
-          arg: {
-            expectedState: {},
-            message: '🔵 Your driver has arrived at the pickup point!\nPlease proceed to your vehicle 🚗',
-            path: 'blank-screen',
-          },
-        }))
-        .add(new TextResponse({ message: '👌 Rider has been notified that you arrived.' }))
-        .add(new RedirectResponse({ path: 'driver-accept-ride' }));
-    }
+    const isStartTrip = (value && typeof value === 'string' &&
+                          (value.includes('start-trip') || value.includes('Start Trip')));
 
     if (isStartTrip) {
       return new CompositeResponse()
-        .add(new TextResponse({ message: '👌 OK!' }))
-        .add(new UserStateResponse({ driverArrived: null }))
+        .add(new TextResponse({ message: '\u{1F44C} OK!' }))
         .add(new RedirectResponse({ path: 'driver-start-trip' }));
     }
 

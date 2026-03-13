@@ -1,21 +1,3 @@
-/*
-    LibreTaxi, free and open source ride sharing platform.
-    Copyright (C) 2016-2017  Roman Pushkin
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation, either version 3 of the
-    License, or (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 import Action from '../../../action';
 import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
@@ -33,29 +15,23 @@ export default class DriverStartTrip extends Action {
 
   get() {
     const order = this.user.state.currentOrder || {};
-    const fare = order.calculatedFare || {};
-
-    const lines = [];
-    lines.push('🚕 Trip Started!');
-    lines.push('');
-    lines.push(`📏 Distance: ${fare.distanceKm || 0} km`);
-    lines.push(`💰 Fare: ${fare.currencySymbol || 'LKR '}${fare.totalFare || 0}`);
-    lines.push('');
-    lines.push('When you arrive at the destination, tap END TRIP 🔴 to share your location and end the trip.');
+    const rideNum = order.rideNum || '##';
 
     return new CompositeResponse()
       .add(new CallActionResponse({
         userKey: order.passengerKey,
         route: 'passenger-trip-started',
-        arg: { started: true },
+        arg: { started: true, rideNum },
       }))
       .add(new UserStateResponse({
         tripStatus: 'in_progress',
         tripStartedAt: Firebase.database.ServerValue.TIMESTAMP,
       }))
-      .add(new TextResponse({ message: lines.join('\n') }))
+      .add(new TextResponse({
+        message: `\u{1F7E2} Trip #${rideNum} started!\n\nWhen you arrive at the destination, tap END TRIP to share your location and complete the trip.`,
+      }))
       .add(new RequestLocationResponse({
-        buttonText: 'END TRIP 🔴',
+        buttonText: '\u{1F534} End Trip',
       }));
   }
 
@@ -65,6 +41,6 @@ export default class DriverStartTrip extends Action {
         .add(new UserStateResponse({ tripEndLocation: value }))
         .add(new RedirectResponse({ path: 'driver-end-trip' }));
     }
-    return new TextResponse({ message: 'Please share your location to end the trip by tapping the END TRIP 🔴 button.' });
+    return new TextResponse({ message: 'Please share your location to end the trip by tapping the \u{1F534} End Trip button.' });
   }
 }

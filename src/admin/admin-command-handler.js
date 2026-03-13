@@ -47,6 +47,19 @@ export default function handleAdminCommand(api, msg) {
   }
 
   switch (command) {
+    case '/help':
+    case '/commands':
+      return cmdHelp(api, chatId);
+    case '/status':
+      return cmdStatus(api, chatId);
+    case '/whoami':
+      api.sendMessage(chatId, `Your Telegram ID: ${userId}`);
+      return true;
+    case '/session':
+      return cmdShowSettings(api, chatId);
+    case '/approve':
+      api.sendMessage(chatId, '\u2705 No pending requests.');
+      return true;
     case '/baserate':
     case '/farefirst':
       return cmdBaseRate(api, chatId, arg);
@@ -399,3 +412,61 @@ function cmdShowSettings(api, chatId) {
   api.sendMessage(chatId, lines.join('\n'));
   return true;
 }
+
+function cmdHelp(api, chatId) {
+  const lines = [
+    '\u{1F4CB} Connect \u2014 Admin Commands:',
+    '',
+    '/help \u2014 Show this help',
+    '/commands \u2014 List all commands',
+    '/status \u2014 Bot status',
+    '/approve \u2014 Approve/reject requests',
+    '/baserate [amt] \u2014 Set base fare',
+    '/basekm [km] \u2014 Set base distance',
+    '/setrate [amt] \u2014 Set per-km rate',
+    '/rate \u2014 View current rates',
+    '/setradius [km] \u2014 Set driver radius',
+    '/block @user \u2014 Block user',
+    '/unblock @user \u2014 Unblock user',
+    '/drivers \u2014 List drivers',
+    '/riders \u2014 List riders',
+    '/users \u2014 All users',
+    '/trips \u2014 Trip history',
+    '/groupid \u2014 Get group ID',
+    '/whoami \u2014 Your Telegram ID',
+    '/session \u2014 Bot settings',
+    '/setbotname [name] \u2014 Set bot name',
+    '/setwelcome [msg] \u2014 Set welcome message',
+    '/settings \u2014 All settings',
+  ];
+  api.sendMessage(chatId, lines.join('\n'));
+  return true;
+}
+
+function cmdStatus(api, chatId) {
+  const db = firebaseDB.config();
+  db.ref('users').once('value', (snap) => {
+    const data = snap.val() || {};
+    let driverCount = 0;
+    let riderCount = 0;
+    let blockedCount = 0;
+    Object.values(data).forEach((u) => {
+      if (u.userType === 'driver') driverCount++;
+      if (u.userType === 'passenger') riderCount++;
+      if (u.blocked) blockedCount++;
+    });
+    const lines = [
+      '\u{1F4CA} Connect \u2014 Bot Status',
+      '',
+      `\u{1F697} Drivers: ${driverCount}`,
+      `\u{1F695} Riders: ${riderCount}`,
+      `\u{1F6AB} Blocked: ${blockedCount}`,
+      `\u{1F464} Total Users: ${Object.keys(data).length}`,
+      '',
+      `\u2705 Bot is running.`,
+    ];
+    api.sendMessage(chatId, lines.join('\n'));
+  });
+  return true;
+}
+

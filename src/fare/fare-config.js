@@ -18,8 +18,8 @@
 
 import { saveConfigToOracle, getConfigFromOracle } from '../support/oracle-db';
 
-const ORACLE_KEY = 'libretaxi:fare_config';
-const RADIUS_KEY = 'libretaxi:max_radius';
+const ORACLE_KEY = 'connect:fare_config';
+const RADIUS_KEY = 'connect:max_radius';
 
 const DEFAULT_CONFIG = {
   currency: 'LKR',

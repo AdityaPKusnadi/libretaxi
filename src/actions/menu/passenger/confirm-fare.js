@@ -1,32 +1,10 @@
-/*
-    LibreTaxi, free and open source ride sharing platform.
-    Copyright (C) 2016-2017  Roman Pushkin
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation, either version 3 of the
-    License, or (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 import Action from '../../../action';
 import CompositeResponse from '../../../responses/composite-response';
 import TextResponse from '../../../responses/text-response';
-import OptionsResponse from '../../../responses/options-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import RedirectResponse from '../../../responses/redirect-response';
 import SubmitOrderResponse from '../../../responses/submit-order/submit-order-response';
 import CallActionResponse from '../../../responses/call-action-response';
-import If from '../../../responses/if-response';
-import Equals from '../../../conditions/equals';
-import NotIn from '../../../conditions/not-in';
 import Firebase from 'firebase-admin';
 import uuid from 'uuid';
 import calculateFare from '../../../fare/fare-calculator';
@@ -57,21 +35,24 @@ export default class PassengerConfirmFare extends Action {
     const rideNumStr = String(Math.floor(Math.random() * 100) + 1).padStart(2, '0');
 
     const lines = [];
-    lines.push('\u{1F695} Trip Estimate');
+    lines.push(`Ride #${rideNumStr} created \u2705`);
     lines.push('');
-    lines.push(`\u{1F4CF} Distance: ~${fare.distanceKm} km`);
-    lines.push(`\u{1F4B0} Estimated Fare: ${fare.currencySymbol}${fare.totalFare}`);
+    lines.push(`Estimated distance: ${fare.distanceKm} km`);
+    lines.push(`Estimated fare: ~${fare.currencySymbol}${fare.totalFare}`);
     lines.push('');
-    lines.push('Finding a driver nearby... please wait.');
+    if (pickupLink) lines.push(`Pickup: ${pickupLink}`);
+    if (dropoffLink) lines.push(`Drop-off: ${dropoffLink}`);
+    lines.push('');
+    lines.push('Finding nearby drivers now...');
 
     const priceStr = String(fare.totalFare || 0);
     const orderKey = uuid.v4();
 
     return new CompositeResponse()
-      .add(new UserStateResponse({ 
-        calculatedFare: fare, 
+      .add(new UserStateResponse({
+        calculatedFare: fare,
         price: priceStr,
-        rideNum: rideNumStr
+        rideNum: rideNumStr,
       }))
       .add(new TextResponse({ message: lines.join('\n') }))
       .add(new SubmitOrderResponse({
@@ -103,4 +84,3 @@ export default class PassengerConfirmFare extends Action {
       .add(new RedirectResponse({ path: 'blank-screen' }));
   }
 }
-

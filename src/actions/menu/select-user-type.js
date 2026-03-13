@@ -1,21 +1,3 @@
-/*
-    LibreTaxi, free and open source ride sharing platform.
-    Copyright (C) 2016-2017  Roman Pushkin
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation, either version 3 of the
-    License, or (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 import Action from '../../action';
 import OptionsResponse from '../../responses/options-response';
 import CompositeResponse from '../../responses/composite-response';
@@ -26,6 +8,7 @@ import If from '../../responses/if-response';
 import Equals from '../../conditions/equals';
 import NotIn from '../../conditions/not-in';
 import ErrorResponse from '../../responses/error-response';
+import CancelCurrentOrderResponse from '../../responses/cancel-current-order-response';
 import loadFareConfig from '../../fare/fare-config';
 
 export default class SelectUserType extends Action {
@@ -43,9 +26,17 @@ export default class SelectUserType extends Action {
       .add(new TextResponse({ message: welcomeMsg }))
       .add(new OptionsResponse({
         rows: [
-          [{ label: '\u{1F695} Request Ride', value: 'passenger' }],
-          [{ label: '\u{1F697} I\'m a Driver', value: 'driver' }],
-          [{ label: '\u{1F4CD} Update My Location', value: 'update-location' }],
+          [
+            { label: '\u{1F695} Request Ride', value: 'passenger' },
+            { label: '\u{1F697} I\'m a Driver', value: 'driver' },
+          ],
+          [
+            { label: '\u{1F4CD} Update My Location', value: 'update-location' },
+            { label: '\u{1F7E5} Cancel Current Ride', value: 'cancel-ride' },
+          ],
+          [
+            { label: '\u2139\uFE0F Help', value: 'help' },
+          ],
         ],
       }));
   }
@@ -83,7 +74,41 @@ export default class SelectUserType extends Action {
           .add(new RedirectResponse({ path: 'driver-checkin' })),
       }))
       .add(new If({
-        condition: new NotIn(value, ['passenger', 'driver', 'update-location']),
+        condition: new Equals(value, 'cancel-ride'),
+        ok: this.user.state.currentOrderKey
+          ? new CompositeResponse()
+              .add(new TextResponse({ message: '\u274C Your current ride has been cancelled.' }))
+              .add(new UserStateResponse({
+                tripStatus: null,
+                currentOrderKey: null,
+                pendingOrder: null,
+                driverKey: null,
+                driverPhone: null,
+              }))
+              .add(new CancelCurrentOrderResponse())
+              .add(new RedirectResponse({ path: 'select-user-type' }))
+          : new CompositeResponse()
+              .add(new TextResponse({ message: 'You don\'t have an active ride to cancel.' }))
+              .add(new RedirectResponse({ path: 'select-user-type' })),
+      }))
+      .add(new If({
+        condition: new Equals(value, 'help'),
+        ok: new CompositeResponse()
+          .add(new TextResponse({
+            message: '\u2139\uFE0F Connect \u2014 Help\n\n' +
+              '\u{1F695} Request Ride \u2014 Book a taxi\n' +
+              '\u{1F697} I\'m a Driver \u2014 Register or go online as driver\n' +
+              '\u{1F4CD} Update My Location \u2014 Update your GPS position\n' +
+              '\u{1F7E5} Cancel Current Ride \u2014 Cancel active booking\n\n' +
+              'Commands:\n' +
+              '/start \u2014 Return to main menu\n' +
+              '/cancel \u2014 Cancel current action\n' +
+              '/cancelride \u2014 Cancel active ride',
+          }))
+          .add(new RedirectResponse({ path: 'select-user-type' })),
+      }))
+      .add(new If({
+        condition: new NotIn(value, ['passenger', 'driver', 'update-location', 'cancel-ride', 'help']),
         ok: new ErrorResponse({ message: this.gt('error_try_again') }),
       }));
   }

@@ -1,21 +1,3 @@
-/*
-    LibreTaxi, free and open source ride sharing platform.
-    Copyright (C) 2016-2017  Roman Pushkin
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation, either version 3 of the
-    License, or (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 /* eslint-disable no-console, no-use-before-define */
 import './init';
 import TelegramBot from 'tgfancy';
@@ -45,6 +27,43 @@ loadFareConfigFromOracle().then((config) => {
   });
 });
 
+const userCommands = [
+  { command: 'start', description: 'Start bot / main menu' },
+  { command: 'cancel', description: 'Cancel current action' },
+  { command: 'cancelride', description: 'Cancel active ride' },
+];
+
+const adminCommands = [
+  { command: 'help', description: 'Show all available commands' },
+  { command: 'commands', description: 'List all slash commands' },
+  { command: 'status', description: 'Show bot status' },
+  { command: 'approve', description: 'Approve or reject request' },
+  { command: 'baserate', description: 'Change base rate' },
+  { command: 'basekm', description: 'Change base distance (km)' },
+  { command: 'setrate', description: 'Change per-km rate' },
+  { command: 'setradius', description: 'Change driver search radius' },
+  { command: 'rate', description: 'View current rates' },
+  { command: 'block', description: 'Block a user' },
+  { command: 'unblock', description: 'Unblock a user' },
+  { command: 'drivers', description: 'List registered drivers' },
+  { command: 'riders', description: 'List registered riders' },
+  { command: 'users', description: 'All registered users' },
+  { command: 'trips', description: 'Trip data & statistics' },
+  { command: 'groupid', description: 'Get group ID for logs' },
+  { command: 'whoami', description: 'Show your sender ID' },
+  { command: 'session', description: 'Session settings' },
+];
+
+api.setMyCommands(userCommands, { scope: { type: 'default' } })
+  .then(() => console.log('User commands registered.'))
+  .catch((e) => console.log('Failed to set user commands:', e.message));
+
+settings.ADMIN_IDS.forEach((adminId) => {
+  api.setMyCommands(adminCommands, { scope: { type: 'chat', chat_id: adminId } })
+    .then(() => console.log(`Admin commands registered for ${adminId}.`))
+    .catch((e) => console.log(`Failed to set admin commands for ${adminId}:`, e.message));
+});
+
 api.on('message', (msg) => {
   api.sendChatAction(msg.chat.id, 'typing').catch(() => {});
 
@@ -56,12 +75,22 @@ api.on('message', (msg) => {
 
   withUser(userKey, (user) => {
     if (user.state.blocked) {
-      api.sendMessage(msg.chat.id, '⛔ Your account has been blocked. Please contact the administrator.');
+      api.sendMessage(msg.chat.id, '\u26D4 Your account has been blocked. Please contact the administrator.');
       return;
     }
 
     let menuLocation = user.state.menuLocation || 'default';
+
     if (something === '/start') menuLocation = 'system-reset-user';
+    if (something === '/cancel') menuLocation = 'system-reset-user';
+    if (something === '/cancelride') {
+      if (user.state.currentOrderKey) {
+        queue.create({ userKey, arg: 'cancel-ride', route: 'select-user-type' });
+      } else {
+        api.sendMessage(msg.chat.id, 'You don\'t have an active ride to cancel.');
+      }
+      return;
+    }
 
     queue.create({
       userKey,
@@ -89,7 +118,7 @@ api.on('callback_query', (msg) => {
 
   withUser(userKey, (user) => {
     if (user.state.blocked) {
-      api.sendMessage(msg.from.id, '⛔ Your account has been blocked. Please contact the administrator.');
+      api.sendMessage(msg.from.id, '\u26D4 Your account has been blocked. Please contact the administrator.');
       return;
     }
     const t = initLocale(user);
@@ -117,7 +146,7 @@ queue.process((job, done) => {
 
 process.once('SIGTERM', () => {
   console.log('Shutting down gracefully...');
-  api.stopPolling(); // TODO: improve when Telegram webhook used
+  api.stopPolling();
   process.exit(0);
 });
 
@@ -126,7 +155,7 @@ const getLocation = (msg) => {
   return [msg.location.latitude, msg.location.longitude];
 };
 
-const withUser = (userKey, f) => { // eslint-disable-line arrow-body-style
+const withUser = (userKey, f) => {
   return loadUser(userKey)
     .then((user) => {
       try {
