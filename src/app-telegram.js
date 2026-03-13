@@ -54,12 +54,24 @@ const adminCommands = [
   { command: 'session', description: 'Session settings' },
 ];
 
-api.setMyCommands(userCommands, { scope: { type: 'default' } })
+const TG_API = `https://api.telegram.org/bot${settings.TELEGRAM_TOKEN}`;
+
+function setMyCommands(commands, scope) {
+  const body = { commands };
+  if (scope) body.scope = scope;
+  return fetch(`${TG_API}/setMyCommands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(r => r.json());
+}
+
+setMyCommands(userCommands, { type: 'default' })
   .then(() => console.log('User commands registered.'))
   .catch((e) => console.log('Failed to set user commands:', e.message));
 
 settings.ADMIN_IDS.forEach((adminId) => {
-  api.setMyCommands(adminCommands, { scope: { type: 'chat', chat_id: adminId } })
+  setMyCommands(adminCommands, { type: 'chat', chat_id: adminId })
     .then(() => console.log(`Admin commands registered for ${adminId}.`))
     .catch((e) => console.log(`Failed to set admin commands for ${adminId}:`, e.message));
 });
