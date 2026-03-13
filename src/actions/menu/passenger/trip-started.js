@@ -16,6 +16,9 @@ export default class PassengerTripStarted extends Action {
 
   call(args) {
     if (args && args.started) {
+      if (!this.user.state.tripStatus && !this.user.state.driverKey) {
+        return new TextResponse({ message: '' });
+      }
       const rideNum = args.rideNum || '##';
       return new CompositeResponse()
         .add(new InterruptPromptResponse())

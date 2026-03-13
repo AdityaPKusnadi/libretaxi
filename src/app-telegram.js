@@ -18,6 +18,10 @@ const api = new TelegramBot(settings.TELEGRAM_TOKEN, {
 });
 const queue = new CaQueue();
 
+function isAdmin(chatId) {
+  return settings.ADMIN_IDS.indexOf(parseInt(chatId, 10)) !== -1;
+}
+
 loadFareConfigFromOracle().then((config) => {
   if (config.botName) settings.BOT_NAME = config.botName;
   if (config.welcomeMsg) settings.WELCOME_MSG = config.welcomeMsg;
@@ -38,13 +42,13 @@ const adminCommands = [
   { command: 'commands', description: 'List all slash commands' },
   { command: 'status', description: 'Show bot status' },
   { command: 'approve', description: 'Approve or reject request' },
-  { command: 'baserate', description: 'Change base rate' },
-  { command: 'basekm', description: 'Change base distance (km)' },
-  { command: 'setrate', description: 'Change per-km rate' },
-  { command: 'setradius', description: 'Change driver search radius' },
+  { command: 'baserate', description: 'Set base fare (e.g. /baserate 300)' },
+  { command: 'basekm', description: 'Set base km (e.g. /basekm 3)' },
+  { command: 'setrate', description: 'Set per-km rate (e.g. /setrate 100)' },
+  { command: 'setradius', description: 'Set driver radius (e.g. /setradius 10)' },
   { command: 'rate', description: 'View current rates' },
-  { command: 'block', description: 'Block a user' },
-  { command: 'unblock', description: 'Unblock a user' },
+  { command: 'block', description: 'Block user (e.g. /block @user)' },
+  { command: 'unblock', description: 'Unblock user (e.g. /unblock @user)' },
   { command: 'drivers', description: 'List registered drivers' },
   { command: 'riders', description: 'List registered riders' },
   { command: 'users', description: 'All registered users' },
@@ -52,6 +56,10 @@ const adminCommands = [
   { command: 'groupid', description: 'Get group ID for logs' },
   { command: 'whoami', description: 'Show your sender ID' },
   { command: 'session', description: 'Session settings' },
+  { command: 'settings', description: 'All bot settings' },
+  { command: 'setgroup', description: 'Set trip log group' },
+  { command: 'setbotname', description: 'Set bot name' },
+  { command: 'setwelcome', description: 'Set welcome message' },
 ];
 
 const TG_API = `https://api.telegram.org/bot${settings.TELEGRAM_TOKEN}`;
@@ -60,6 +68,16 @@ function setMyCommands(commands, scope) {
   const body = { commands };
   if (scope) body.scope = scope;
   return fetch(`${TG_API}/setMyCommands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(r => r.json());
+}
+
+function deleteMyCommands(scope) {
+  const body = {};
+  if (scope) body.scope = scope;
+  return fetch(`${TG_API}/deleteMyCommands`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -91,16 +109,55 @@ api.on('message', (msg) => {
       return;
     }
 
+    if (!isAdmin(msg.chat.id)) {
+      deleteMyCommands({ type: 'chat', chat_id: msg.chat.id }).catch(() => {});
+    }
+
     let menuLocation = user.state.menuLocation || 'default';
 
     if (something === '/start') menuLocation = 'system-reset-user';
     if (something === '/cancel') menuLocation = 'system-reset-user';
     if (something === '/cancelride') {
-      if (user.state.currentOrderKey) {
-        queue.create({ userKey, arg: 'cancel-ride', route: 'select-user-type' });
-      } else {
+      const orderKey = user.state.currentOrderKey;
+      const driverKey = user.state.driverKey;
+
+      if (!orderKey && !driverKey && user.state.tripStatus !== 'accepted' && user.state.tripStatus !== 'in_progress') {
         api.sendMessage(msg.chat.id, 'You don\'t have an active ride to cancel.');
+        return;
       }
+
+      if (orderKey) {
+        const Order = require('./order').default;
+        new Order({ orderKey }).load().then((order) => {
+          order.setState({ status: 'cancelled' });
+          order.save();
+        }).catch(() => {});
+      }
+
+      if (driverKey) {
+        queue.create({
+          userKey: driverKey,
+          arg: {
+            expectedState: {},
+            message: '\u274C Rider has cancelled the ride. You are now available for new rides.',
+            path: 'driver-index',
+          },
+          route: 'show-message',
+        });
+      }
+
+      const firebaseDB = require('./firebase-db').default;
+      firebaseDB.config().ref(`users/${userKey}`).update({
+        currentOrderKey: null,
+        tripStatus: null,
+        driverKey: null,
+        driverPhone: null,
+        pendingOrder: null,
+        menuLocation: 'select-user-type',
+      });
+
+      api.sendMessage(msg.chat.id, '\u274C Your current ride has been cancelled.');
+      queue.create({ userKey, arg: null, route: 'select-user-type' });
       return;
     }
 

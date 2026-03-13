@@ -162,9 +162,9 @@ function cmdSetRadius(api, chatId, arg) {
 }
 
 function cmdBlock(api, chatId, arg, block) {
-  const username = arg.replace('@', '').trim();
+  const username = (arg || '').replace('@', '').trim();
   if (!username) {
-    api.sendMessage(chatId, `❌ Usage: /${block ? 'block' : 'unblock'} @username`);
+    api.sendMessage(chatId, `❌ Usage: /${block ? 'block' : 'unblock'} @username\nExample: /${block ? 'block' : 'unblock'} @johndoe`);
     return true;
   }
 

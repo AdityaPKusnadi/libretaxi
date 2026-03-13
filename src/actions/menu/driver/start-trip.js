@@ -6,6 +6,7 @@ import RedirectResponse from '../../../responses/redirect-response';
 import RequestLocationResponse from '../../../responses/request-location-response';
 import CallActionResponse from '../../../responses/call-action-response';
 import Firebase from 'firebase-admin';
+import Order from '../../../order';
 
 export default class DriverStartTrip extends Action {
 
@@ -16,13 +17,27 @@ export default class DriverStartTrip extends Action {
   get() {
     const order = this.user.state.currentOrder || {};
     const rideNum = order.rideNum || '##';
+    const orderKey = order.orderKey;
 
-    return new CompositeResponse()
-      .add(new CallActionResponse({
+    if (orderKey) {
+      new Order({ orderKey }).load().then((loadedOrder) => {
+        if (loadedOrder.state.status === 'cancelled') {
+          return;
+        }
+      }).catch(() => {});
+    }
+
+    const response = new CompositeResponse();
+
+    if (order.passengerKey) {
+      response.add(new CallActionResponse({
         userKey: order.passengerKey,
         route: 'passenger-trip-started',
         arg: { started: true, rideNum },
-      }))
+      }));
+    }
+
+    response
       .add(new UserStateResponse({
         tripStatus: 'in_progress',
         tripStartedAt: Firebase.database.ServerValue.TIMESTAMP,
@@ -33,6 +48,8 @@ export default class DriverStartTrip extends Action {
       .add(new RequestLocationResponse({
         buttonText: '\u{1F534} End Trip',
       }));
+
+    return response;
   }
 
   post(value) {

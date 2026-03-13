@@ -24,57 +24,26 @@ import CancelCurrentOrderResponse from '../../../responses/cancel-current-order-
 import RedirectResponse from '../../../responses/redirect-response';
 import ErrorResponse from '../../../responses/error-response';
 
-/**
- * Order submitted action. Used to inform the passenger that order
- * has been submitted, and redirects passenger from the blank screen.
- * To be used in {@link SubmitOrderResponseHandler}. Implements `call` method
- * (the same handler for `get` and `post`).
- *
- * @author Roman Pushkin (roman.pushkin@gmail.com)
- * @date 2016-08-20
- * @version 1.1
- * @since 0.1.0
- */
 export default class OrderSubmitted extends Action {
-  /**
-   * Constructor.
-   */
   constructor(options) {
     super(Object.assign({ type: 'order-submitted' }, options));
   }
 
-  /**
-   * Returns text message and temporarily redirects to `foo`.
-   *
-   * @return {CompositeResponse} Returns instance of {@link CompositeResponse}
-   * which contains {@link TextResponse} and {@link RedirectResponse}.
-   */
   get() {
     return new CompositeResponse()
       .add(new TextResponse({ message: this.t('order_submitted') }))
       .add(new OptionsResponse({
         rows: [
           [
-            { label: '❌ Cancel', value: 'cancel' },
+            { label: '\u274C Cancel', value: 'cancel' },
           ],
         ],
       }));
   }
 
-  /**
-   * Cancels current order and redirects to `blank-screen`. If input is incorrect,
-   * returns error.
-   *
-   * @return {CompositeResponse} - containing {@link CancelCurrentOrderResponse}
-   * and {@link RedirectResponse}
-   * @return {ErrorResponse} - when input is incorrect
-   */
   post(value) {
-    if (value === 'cancel' || value === '❌ Cancel') {
-      return new CompositeResponse()
-        .add(new TextResponse({ message: '👌 OK!' }))
-        .add(new CancelCurrentOrderResponse())
-        .add(new RedirectResponse({ path: 'select-user-type' }));
+    if (value === 'cancel' || value === '\u274C Cancel') {
+      return new CancelCurrentOrderResponse();
     }
     return new ErrorResponse({ message: this.t('error_incorrect_input') });
   }

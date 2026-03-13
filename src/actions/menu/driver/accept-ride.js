@@ -92,17 +92,13 @@ export default class DriverAcceptRide extends Action {
     const order = this.user.state.currentOrder || {};
     const pickup = order.passengerLocation;
     const dropoff = order.destinationLocation;
-    const fare = order.calculatedFare || {};
-    const riderName = order.passengerName || 'Rider';
 
     const response = new CompositeResponse();
 
-    response.add(new TextResponse({ message: `\u{1F4CD} PICKUP location:` }));
     if (pickup) {
       response.add(new MapResponse({ location: pickup }));
     }
 
-    response.add(new TextResponse({ message: `\u{1F3C1} DROP-OFF location:` }));
     if (dropoff) {
       response.add(new MapResponse({ location: dropoff }));
     }
