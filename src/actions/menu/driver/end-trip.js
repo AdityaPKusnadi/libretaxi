@@ -41,6 +41,9 @@ export default class DriverEndTrip extends Action {
     }
 
     const riderName = order.passengerName || 'Rider';
+    const riderUsername = order.passengerUsername
+      ? `@${order.passengerUsername}`
+      : riderName;
     const driverUsername = (this.user.state.identity && this.user.state.identity.username)
       ? `@${this.user.state.identity.username}`
       : (this.user.state.driverName || this.user.state.phone || 'Driver');
@@ -49,16 +52,21 @@ export default class DriverEndTrip extends Action {
     const fareAmount = finalFare.totalFare || 0;
     const currencySymbol = finalFare.currencySymbol || 'LKR ';
 
+    const now = new Date();
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dateStr = `[${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}]`;
+
     const summaryLines = [
       '\u2705 Connect \u2014 Trip Completed!',
       '',
-      `\u{1F464} Rider: ${riderName}`,
+      `\u{1F464} Rider: ${riderUsername}`,
       `\u{1F698} Driver: ${driverUsername}`,
       `\u{1F4CF} Distance: ${distanceKm} km`,
       `\u{1F4B5} Rate: ${rateDesc}`,
       `\u{1F4B0} Total Fare: ${currencySymbol}${fareAmount}`,
       '',
-      'Thank you for using Connect!',
+      dateStr,
     ];
 
     const summaryMessage = summaryLines.join('\n');
@@ -109,20 +117,17 @@ export default class DriverEndTrip extends Action {
 
     const tripSettings = new Settings();
     if (tripSettings.LOG_GROUP_ID) {
-      const groupLines = [
-        '\u{1F4CB} Trip Log',
-        '',
-        `\u{1F464} Rider: ${riderName}`,
-        `\u{1F698} Driver: ${driverUsername}`,
-        `\u{1F4CF} Distance: ${distanceKm} km`,
-        `\u{1F4B0} Fare: ${currencySymbol}${fareAmount}`,
-        `\u2705 Status: Completed`,
-      ];
-      try {
-        this.api.sendMessage(tripSettings.LOG_GROUP_ID, groupLines.join('\n'));
-      } catch (e) {
+      const tgApi = `https://api.telegram.org/bot${tripSettings.TELEGRAM_TOKEN}`;
+      fetch(`${tgApi}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: tripSettings.LOG_GROUP_ID,
+          text: summaryMessage,
+        }),
+      }).catch((e) => {
         console.log(`Error sending trip log to group: ${e}`);
-      }
+      });
     }
 
     return response;

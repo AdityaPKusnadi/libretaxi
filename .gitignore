@@ -65,3 +65,7 @@ libretaxi-e949f-firebase-adminsdk-fbsvc-ef85513f00.json
 
 # Docker
 .env
+
+*.md
+*.json
+.agents

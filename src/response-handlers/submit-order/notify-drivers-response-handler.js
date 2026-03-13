@@ -170,6 +170,7 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
           price: order.state.price,
           passengerKey: order.state.passengerKey,
           passengerName: order.state.passengerName || null,
+          passengerUsername: order.state.passengerUsername || null,
           calculatedFare: order.state.calculatedFare || null,
           destinationLocation: order.state.destinationLocation || null,
           rideNum: order.state.rideNum || null,
