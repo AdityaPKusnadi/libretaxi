@@ -23,16 +23,29 @@ import { getOracleConnection } from '../support/oracle-db';
 
 const settings = new Settings();
 
+const pendingAdminCommand = {};
+
 function isAdmin(telegramUserId) {
   return settings.ADMIN_IDS.indexOf(telegramUserId) !== -1;
 }
 
 export default function handleAdminCommand(api, msg) {
   const text = (msg.text || '').trim();
-  if (!text.startsWith('/')) return false;
-
   const chatId = msg.chat.id;
   const userId = msg.from.id;
+
+  if (!text.startsWith('/') && pendingAdminCommand[chatId]) {
+    if (!isAdmin(userId)) {
+      delete pendingAdminCommand[chatId];
+      return false;
+    }
+    const pending = pendingAdminCommand[chatId];
+    delete pendingAdminCommand[chatId];
+    return executePendingCommand(api, chatId, userId, pending, text);
+  }
+
+  if (!text.startsWith('/')) return false;
+
   const parts = text.split(/\s+/);
   const command = parts[0].toLowerCase();
   const arg = parts.slice(1).join(' ');
@@ -44,6 +57,26 @@ export default function handleAdminCommand(api, msg) {
 
   if (!isAdmin(userId)) {
     return false;
+  }
+
+  const paramCommands = {
+    '/baserate': { prompt: '\u{1F4B0} Enter the base fare amount (e.g. 300):', handler: 'baserate' },
+    '/farefirst': { prompt: '\u{1F4B0} Enter the base fare amount (e.g. 300):', handler: 'baserate' },
+    '/basekm': { prompt: '\u{1F4CF} Enter the base distance in km (e.g. 3):', handler: 'basekm' },
+    '/setrate': { prompt: '\u{1F4B5} Enter the per-km rate (e.g. 100):', handler: 'setrate' },
+    '/fareperkm': { prompt: '\u{1F4B5} Enter the per-km rate (e.g. 100):', handler: 'setrate' },
+    '/setradius': { prompt: '\u{1F4CF} Enter the driver search radius in km (e.g. 10):', handler: 'setradius' },
+    '/block': { prompt: '\u{1F6AB} Enter the username to block (e.g. @johndoe):', handler: 'block' },
+    '/unblock': { prompt: '\u2705 Enter the username to unblock (e.g. @johndoe):', handler: 'unblock' },
+    '/setgroup': { prompt: '\u{1F4E2} Enter the group ID for trip logs:', handler: 'setgroup' },
+    '/setbotname': { prompt: '\u{1F4DB} Enter the new bot name:', handler: 'setbotname' },
+    '/setwelcome': { prompt: '\u{1F4AC} Enter the new welcome message:', handler: 'setwelcome' },
+  };
+
+  if (paramCommands[command] && !arg) {
+    pendingAdminCommand[chatId] = paramCommands[command].handler;
+    api.sendMessage(chatId, paramCommands[command].prompt);
+    return true;
   }
 
   switch (command) {
@@ -98,6 +131,21 @@ export default function handleAdminCommand(api, msg) {
       return cmdShowSettings(api, chatId);
     default:
       return false;
+  }
+}
+
+function executePendingCommand(api, chatId, userId, handler, arg) {
+  switch (handler) {
+    case 'baserate': return cmdBaseRate(api, chatId, arg);
+    case 'basekm': return cmdBaseKm(api, chatId, arg);
+    case 'setrate': return cmdSetRate(api, chatId, arg);
+    case 'setradius': return cmdSetRadius(api, chatId, arg);
+    case 'block': return cmdBlock(api, chatId, arg, true);
+    case 'unblock': return cmdBlock(api, chatId, arg, false);
+    case 'setgroup': return cmdSetGroup(api, chatId, arg);
+    case 'setbotname': return cmdSetBotName(api, chatId, arg);
+    case 'setwelcome': return cmdSetWelcome(api, chatId, arg);
+    default: return false;
   }
 }
 
