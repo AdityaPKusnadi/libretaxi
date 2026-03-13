@@ -48,6 +48,7 @@ export default class RequestPhoneResponseHandler extends ResponseHandler {
         reply_markup: JSON.stringify({
           keyboard: [[{ text: buttonText, request_contact: true }]],
           one_time_keyboard: true,
+          resize_keyboard: true,
         }),
       }).catch(telegramErrors);
   }

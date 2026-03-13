@@ -57,6 +57,7 @@ export default class RequestLocationResponseHandler extends ResponseHandler {
         reply_markup: JSON.stringify({
           keyboard,
           one_time_keyboard: true,
+          resize_keyboard: true,
         }),
       }).catch(telegramErrors);
   }
