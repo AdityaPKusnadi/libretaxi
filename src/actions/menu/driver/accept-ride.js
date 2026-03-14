@@ -46,9 +46,23 @@ export default class DriverAcceptRide extends Action {
       const pickupLink = pickup ? `https://maps.google.com/?q=${pickup[0]},${pickup[1]}` : 'N/A';
       const dropoffLink = dropoff ? `https://maps.google.com/?q=${dropoff[0]},${dropoff[1]}` : 'N/A';
 
-      const driverMsg = `\u2705 Ride #${rideNumDisplay} accepted!\n\n` +
-        `Pickup: ${pickupLink}\n` +
-        `Drop-off: ${dropoffLink}`;
+      const fare = args.calculatedFare || {};
+      const riderNameDisplay = args.passengerName || 'Rider';
+      const riderPhone = args.passengerPhone || 'N/A';
+      const distanceKm = fare.distanceKm || 'N/A';
+      const fareTotal = fare.totalFare ? `${fare.currencySymbol || 'LKR '}${fare.totalFare}` : 'N/A';
+
+      const driverMsg =
+        `You've accepted the ride! \u{1F389}\n\n` +
+        `\u{1F464} Rider: ${riderNameDisplay}\n` +
+        `\u{1F4DE} Contact: ${riderPhone}\n` +
+        `\u270F Distance: ${distanceKm} km\n` +
+        `\u{1F4B0} Fare: ${fareTotal}\n\n` +
+        `\u{1F4CD} Pickup and \u{1F3C1} Drop-off locations are shared below.\n` +
+        `Tap on the locations to open in Google Maps and navigate.\n\n` +
+        `\u{1F4CD} PICKUP location:\n${pickupLink}\n\n` +
+        `\u{1F3C1} DROP-OFF location:\n${dropoffLink}\n\n` +
+        `When you reach the rider and are ready to go, tap Start Trip:`;
 
       return new CompositeResponse()
         .add(new CallActionResponse({

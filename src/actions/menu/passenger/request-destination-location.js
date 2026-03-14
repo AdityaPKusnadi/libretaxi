@@ -54,7 +54,7 @@ export default class PassengerRequestDestinationLocation extends Action {
    */
   get() {
     return new CompositeResponse()
-      .add(new TextResponse({ message: '🏁 Where is your destination?\n\nType the address or place name below.\nExample: Monas Jakarta, Bandung Station\n\nOr tap the 📎 attachment button → Location → search and pin your destination on the map.' }))
+      .add(new TextResponse({ message: '\u{1F3C1} Where is your Drop destination?\n\nType the address or place name below.\nExample: "Colombo Fort", "Bambalapitiya"\n\nOr tap the \u{1F4CE} attachment button \u2192 Location \u2192 search and pin your destination on the map.' }))
       .add(new RequestUserInputResponse());
   }
 

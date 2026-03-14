@@ -98,6 +98,9 @@ export default class CheckinResponseHandler extends ResponseHandler {
     const userKey = this.driver.userKey;
     log.debug(`order found for driver ${userKey}: order key: ${orderKey}, location: ${location}, distance: ${distance}`); // eslint-disable-line max-len
     loadOrder(orderKey).then((order) => {
+      const driverVehicle = this.driver.state.vehicleType || 'car';
+      const orderVehicle = (order.state && order.state.requestedVehicleType) || 'car';
+      if (driverVehicle !== orderVehicle) return;
       this.notifyDriver.call(userKey, distance, order);
     });
   }

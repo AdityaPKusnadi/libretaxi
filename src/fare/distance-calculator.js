@@ -1,22 +1,5 @@
-/*
-    LibreTaxi, free and open source ride sharing platform.
-    Copyright (C) 2016-2017  Roman Pushkin
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation, either version 3 of the
-    License, or (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 import osrmRoute from './osrm-client';
+import { getVehicleRate } from './fare-config';
 
 const EARTH_RADIUS_KM = 6371;
 const KM_TO_MILES = 0.621371;
@@ -53,5 +36,51 @@ export function calculateRoadDistance(origin, destination) {
       fallback.durationMinutes = null;
       fallback.isEstimate = true;
       return fallback;
+    });
+}
+
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
+
+export function calculateFareFromDistance(distanceKm, vehicleType, options = {}) {
+  const rate = options.rateOverride || getVehicleRate(vehicleType || 'car');
+
+  const baseFare = rate.baseFare;
+  const baseKm = rate.baseKm;
+  const perKmRate = rate.perKmRate;
+
+  let totalFare;
+  if (distanceKm <= baseKm) {
+    totalFare = baseFare;
+  } else {
+    totalFare = baseFare + (distanceKm - baseKm) * perKmRate;
+  }
+  totalFare = round2(totalFare);
+
+  const rateDescription = `First ${baseKm.toFixed(1)} km = ${rate.currencySymbol}${baseFare}, then ${rate.currencySymbol}${perKmRate}/km`;
+
+  return {
+    distanceKm,
+    baseFare,
+    baseKm,
+    perKmRate,
+    totalFare,
+    currency: rate.currency || 'LKR',
+    currencySymbol: rate.currencySymbol || 'LKR ',
+    rateDescription,
+  };
+}
+
+export function calculateFareAsync(origin, destination, vehicleType) {
+  return calculateRoadDistance(origin, destination)
+    .then((dist) => {
+      const result = calculateFareFromDistance(dist.km, vehicleType);
+      result.distanceKm = dist.km;
+      result.distanceMiles = dist.miles;
+      result.distanceDisplay = `${dist.km} km`;
+      result.durationMinutes = dist.durationMinutes || null;
+      result.isEstimate = dist.isEstimate || false;
+      return result;
     });
 }
