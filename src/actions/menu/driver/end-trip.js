@@ -4,8 +4,9 @@ import TextResponse from '../../../responses/text-response';
 import UserStateResponse from '../../../responses/user-state-response';
 import RedirectResponse from '../../../responses/redirect-response';
 import CallActionResponse from '../../../responses/call-action-response';
-import { calculateFareFromDistance } from '../../../fare/fare-calculator';
-import calculateDistance from '../../../fare/distance-calculator';
+import PromiseResponse from '../../../responses/promise-response';
+import { calculateRoadDistance } from '../../../fare/distance-calculator';
+import { calculateFareFromDistance } from '../../../fare/distance-calculator';
 import Firebase from 'firebase-admin';
 import { updateTripStatus } from '../../../support/oracle-logger';
 import { sendGroupLog, formatDate } from '../../../support/group-log';
@@ -18,28 +19,31 @@ export default class DriverEndTrip extends Action {
 
   get() {
     const order = this.user.state.currentOrder || {};
-    const fare = order.calculatedFare || {};
-    const pickup = order.passengerLocation;
-    const dropoff = order.destinationLocation;
+    const startLocation = this.user.state.tripStartLocation;
     const endLocation = this.user.state.tripEndLocation;
-
-    let distanceKm = fare.distanceKm || 0;
-    let finalFare = fare;
     const tripStarted = !!this.user.state.tripStartedAt;
+    const vehicleType = (order.requestedVehicleType || this.user.state.vehicleType || 'car');
 
-    if (!tripStarted) {
-      distanceKm = 0;
-      finalFare = calculateFareFromDistance(0);
-    } else if (pickup && endLocation) {
-      const dist = calculateDistance(pickup, endLocation);
-      distanceKm = dist.km;
-      finalFare = calculateFareFromDistance(distanceKm);
-    } else if (pickup && dropoff) {
-      const dist = calculateDistance(pickup, dropoff);
-      distanceKm = dist.km;
-      finalFare = calculateFareFromDistance(distanceKm);
+    if (!tripStarted || !startLocation || !endLocation) {
+      const fallbackFare = calculateFareFromDistance(0, vehicleType);
+      return this._buildResponse(order, 0, fallbackFare, vehicleType);
     }
 
+    return new PromiseResponse({
+      promise: calculateRoadDistance(startLocation, endLocation),
+      cb: (dist) => {
+        const distanceKm = dist.km || 0;
+        const finalFare = calculateFareFromDistance(distanceKm, vehicleType);
+        return this._buildResponse(order, distanceKm, finalFare, vehicleType);
+      },
+    });
+  }
+
+  post() {
+    return this.get();
+  }
+
+  _buildResponse(order, distanceKm, finalFare, vehicleType) {
     const riderName = order.passengerName || 'Rider';
     const riderUsernameTag = order.passengerUsername ? `@${order.passengerUsername}` : null;
     const riderChatDisplay = riderUsernameTag || riderName;
@@ -87,6 +91,8 @@ export default class DriverEndTrip extends Action {
       tripFare: fareAmount,
       currentOrder: null,
       currentOrderKey: null,
+      tripStartLocation: null,
+      tripEndLocation: null,
       passengerProceeded: null,
       driverKey: null,
       pendingOrder: null,
@@ -123,9 +129,5 @@ export default class DriverEndTrip extends Action {
     sendGroupLog(groupLines.join('\n'));
 
     return response;
-  }
-
-  post() {
-    return this.get();
   }
 }
