@@ -46,6 +46,7 @@ export default class DriverOrderNew extends Action {
         passengerKey: args.passengerKey || null,
         passengerName: args.passengerName || null,
         passengerPhone: args.passengerPhone || null,
+        passengerUsername: args.passengerUsername || null,
         orderKey: args.orderKey || null,
         passengerLocation: args.from || null,
         destinationLocation: args.destinationLocation || null,
