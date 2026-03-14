@@ -62,6 +62,8 @@ export default class PassengerRateDriver extends Action {
     return new CompositeResponse()
       .add(new UserStateResponse({
         tripStatus: null,
+        currentOrderKey: null,
+        currentOrder: null,
         driverPhone: null,
         driverKey: null,
       }))

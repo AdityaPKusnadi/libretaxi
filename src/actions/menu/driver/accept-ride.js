@@ -49,13 +49,14 @@ export default class DriverAcceptRide extends Action {
       const fare = args.calculatedFare || {};
       const riderNameDisplay = args.passengerName || 'Rider';
       const riderPhone = args.passengerPhone || 'N/A';
+      const riderPhoneLink = riderPhone !== 'N/A' ? `[${riderPhone}](tel:${riderPhone})` : 'N/A';
       const distanceKm = fare.distanceKm || 'N/A';
       const fareTotal = fare.totalFare ? `${fare.currencySymbol || 'LKR '}${fare.totalFare}` : 'N/A';
 
       const driverMsg =
         `You've accepted the ride! \u{1F389}\n\n` +
         `\u{1F464} Rider: ${riderNameDisplay}\n` +
-        `\u{1F4DE} Contact: ${riderPhone}\n` +
+        `\u{1F4DE} Contact: ${riderPhoneLink}\n` +
         `\u270F Distance: ${distanceKm} km\n` +
         `\u{1F4B0} Fare: ${fareTotal}\n\n` +
         `\u{1F4CD} Pickup and \u{1F3C1} Drop-off locations are shared below.\n` +

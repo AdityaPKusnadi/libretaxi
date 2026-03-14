@@ -41,9 +41,9 @@ export default class DriverEndTrip extends Action {
     }
 
     const riderName = order.passengerName || 'Rider';
-    const riderUsername = order.passengerUsername
-      ? `@${order.passengerUsername}`
-      : riderName;
+    const riderUsernameTag = order.passengerUsername ? `@${order.passengerUsername}` : null;
+    const riderChatDisplay = riderUsernameTag || riderName;
+    const riderGroupDisplay = riderUsernameTag || riderName;
     const driverUsername = (this.user.state.identity && this.user.state.identity.username)
       ? `@${this.user.state.identity.username}`
       : (this.user.state.driverName || this.user.state.phone || 'Driver');
@@ -56,7 +56,7 @@ export default class DriverEndTrip extends Action {
     const chatLines = [
       `\u2705 Connect \u2014 Trip #${rideNum} Completed!`,
       '',
-      `\u{1F464} Rider: ${riderUsername}`,
+      `\u{1F464} Rider: ${riderChatDisplay}`,
       `\u{1F698} Driver: ${driverUsername}`,
       `\u{1F4CF} Distance: ${distanceKm} km`,
       `\u{1F4B5} Rate: ${rateDesc}`,
@@ -69,7 +69,7 @@ export default class DriverEndTrip extends Action {
     const groupLines = [
       `\u2705 Connect \u2014 Trip #${rideNum} Completed!`,
       '',
-      `\u{1F464} Rider: ${riderUsername}`,
+      `\u{1F464} Rider: ${riderGroupDisplay}`,
       `\u{1F698} Driver: ${driverUsername}`,
       `\u{1F4CF} Distance: ${distanceKm} km`,
       `\u{1F4B5} Rate: ${rateDesc}`,
@@ -86,6 +86,7 @@ export default class DriverEndTrip extends Action {
       tripDistance: distanceKm,
       tripFare: fareAmount,
       currentOrder: null,
+      currentOrderKey: null,
       passengerProceeded: null,
       driverKey: null,
       pendingOrder: null,
