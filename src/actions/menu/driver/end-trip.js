@@ -5,11 +5,12 @@ import UserStateResponse from '../../../responses/user-state-response';
 import RedirectResponse from '../../../responses/redirect-response';
 import CallActionResponse from '../../../responses/call-action-response';
 import PromiseResponse from '../../../responses/promise-response';
-import { calculateRoadDistance } from '../../../fare/distance-calculator';
-import { calculateFareFromDistance } from '../../../fare/distance-calculator';
+import { calculateRoadDistance, calculateFareFromDistance } from '../../../fare/distance-calculator';
+import calculateDistance from '../../../fare/distance-calculator';
 import Firebase from 'firebase-admin';
 import { updateTripStatus } from '../../../support/oracle-logger';
 import { sendGroupLog, formatDate } from '../../../support/group-log';
+import log from '../../../log';
 
 export default class DriverEndTrip extends Action {
 
@@ -24,7 +25,10 @@ export default class DriverEndTrip extends Action {
     const tripStarted = !!this.user.state.tripStartedAt;
     const vehicleType = (order.requestedVehicleType || this.user.state.vehicleType || 'car');
 
+    log.debug(`END_TRIP: driver=${this.user.userKey}, started=${tripStarted}, startGPS=[${startLocation}], endGPS=[${endLocation}], vehicle=${vehicleType}`);
+
     if (!tripStarted || !startLocation || !endLocation) {
+      log.debug('END_TRIP: missing data, using fallback 0 km');
       const fallbackFare = calculateFareFromDistance(0, vehicleType);
       return this._buildResponse(order, 0, fallbackFare, vehicleType);
     }
@@ -33,6 +37,14 @@ export default class DriverEndTrip extends Action {
       promise: calculateRoadDistance(startLocation, endLocation),
       cb: (dist) => {
         const distanceKm = dist.km || 0;
+        log.debug(`END_TRIP: road distance = ${distanceKm} km (estimate=${dist.isEstimate || false})`);
+        const finalFare = calculateFareFromDistance(distanceKm, vehicleType);
+        return this._buildResponse(order, distanceKm, finalFare, vehicleType);
+      },
+      errCb: (err) => {
+        log.debug(`END_TRIP: OSRM promise failed (${err.message}), using Haversine fallback`);
+        const fallback = calculateDistance(startLocation, endLocation);
+        const distanceKm = fallback.km || 0;
         const finalFare = calculateFareFromDistance(distanceKm, vehicleType);
         return this._buildResponse(order, distanceKm, finalFare, vehicleType);
       },
@@ -56,6 +68,8 @@ export default class DriverEndTrip extends Action {
     const fareAmount = finalFare.totalFare || 0;
     const currencySymbol = finalFare.currencySymbol || 'LKR ';
     const rideNum = order.rideNum || '##';
+
+    log.debug(`END_TRIP_RESULT: rideNum=${rideNum}, distance=${distanceKm}, fare=${fareAmount}, vehicle=${vehicleType}`);
 
     const chatLines = [
       `\u2705 Connect \u2014 Trip #${rideNum} Completed!`,
@@ -93,10 +107,12 @@ export default class DriverEndTrip extends Action {
       currentOrderKey: null,
       tripStartLocation: null,
       tripEndLocation: null,
+      tripStartedAt: null,
       passengerProceeded: null,
       driverKey: null,
       pendingOrder: null,
       driverArrived: null,
+      menuLocation: 'driver-index',
     }));
 
     response.add(new TextResponse({ message: chatMessage }));
@@ -123,7 +139,7 @@ export default class DriverEndTrip extends Action {
       tripFare: fareAmount,
       rateDescription: rateDesc,
     }).catch((e) => {
-      console.log(`Error updating trip status in Oracle: ${e}`);
+      log.debug(`END_TRIP: Oracle update error: ${e.message}`);
     });
 
     sendGroupLog(groupLines.join('\n'));

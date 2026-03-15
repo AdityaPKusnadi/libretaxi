@@ -1,31 +1,9 @@
-/*
-    LibreTaxi, free and open source ride sharing platform.
-    Copyright (C) 2016-2017  Roman Pushkin
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation, either version 3 of the
-    License, or (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 import Settings from '../../settings';
+import log from '../log';
 
 const settings = new Settings();
 
-export default function osrmRoute(origin, destination) {
-  const [lat1, lon1] = origin;
-  const [lat2, lon2] = destination;
-  const baseUrl = settings.OSRM_SERVER_URL || 'https://router.project-osrm.org';
-  const url = `${baseUrl}/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=false`;
-
+function makeRequest(url, timeoutMs) {
   const mod = url.startsWith('https') ? require('https') : require('http');
 
   return new Promise((resolve, reject) => {
@@ -51,9 +29,42 @@ export default function osrmRoute(origin, destination) {
     });
 
     req.on('error', (e) => reject(new Error(`OSRM request error: ${e.message}`)));
-    req.setTimeout(10000, () => {
-      req.abort();
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
       reject(new Error('OSRM request timeout'));
     });
   });
+}
+
+export default function osrmRoute(origin, destination) {
+  if (!origin || !destination || !Array.isArray(origin) || !Array.isArray(destination)) {
+    return Promise.reject(new Error('OSRM: invalid coordinates'));
+  }
+
+  const [lat1, lon1] = origin;
+  const [lat2, lon2] = destination;
+
+  if (!lat1 || !lon1 || !lat2 || !lon2) {
+    return Promise.reject(new Error('OSRM: null/zero coordinates'));
+  }
+
+  const baseUrl = settings.OSRM_SERVER_URL || 'https://router.project-osrm.org';
+  const url = `${baseUrl}/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=false`;
+
+  const MAX_RETRIES = 3;
+  const TIMEOUT_MS = 30000;
+
+  function attempt(retryNum) {
+    log.debug(`OSRM request attempt ${retryNum + 1}/${MAX_RETRIES}: ${url}`);
+    return makeRequest(url, TIMEOUT_MS).catch((err) => {
+      log.debug(`OSRM attempt ${retryNum + 1} failed: ${err.message}`);
+      if (retryNum + 1 < MAX_RETRIES) {
+        const delay = (retryNum + 1) * 2000;
+        return new Promise((r) => setTimeout(r, delay)).then(() => attempt(retryNum + 1));
+      }
+      throw err;
+    });
+  }
+
+  return attempt(0);
 }

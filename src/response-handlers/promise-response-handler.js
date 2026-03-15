@@ -62,6 +62,19 @@ export default class PromiseResponseHandler extends
           api,
         });
         handler.call(onResult);
+      })
+      .catch((err) => {
+        console.log(`PromiseResponseHandler error: ${err.message || err}`);
+        if (this.response.errCb) {
+          const handler = ResponseHandlerFactory.getHandler({
+            response: this.response.errCb(err),
+            user,
+            api,
+          });
+          handler.call(onResult);
+        } else {
+          onResult();
+        }
       });
   }
 }

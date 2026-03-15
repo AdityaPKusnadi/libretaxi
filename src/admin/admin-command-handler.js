@@ -53,6 +53,8 @@ export default function handleAdminCommand(api, msg) {
     '/unblock': { prompt: '\u2705 Enter the username to unblock (e.g. @johndoe):', handler: 'unblock' },
     '/blockcat': { prompt: '\u{1F6AB} Enter category to block (car/tuk/bike/van):', handler: 'blockcat' },
     '/unblockcat': { prompt: '\u2705 Enter category to unblock (car/tuk/bike/van):', handler: 'unblockcat' },
+    '/resetdriver': { prompt: '\u{1F504} Enter driver username to reset (e.g. @johndoe):', handler: 'resetdriver' },
+    '/checkdriver': { prompt: '\u{1F50E} Enter driver username to check (e.g. @johndoe):', handler: 'checkdriver' },
   };
 
   if (paramCommands[command] && !arg) {
@@ -105,6 +107,10 @@ export default function handleAdminCommand(api, msg) {
       return cmdTrips(api, chatId, arg);
     case '/revenue':
       return cmdRevenue(api, chatId);
+    case '/resetdriver':
+      return cmdResetDriver(api, chatId, arg);
+    case '/checkdriver':
+      return cmdCheckDriver(api, chatId, arg);
     default:
       return false;
   }
@@ -120,6 +126,8 @@ function executePendingCommand(api, chatId, userId, handler, arg) {
     case 'unblock': return cmdBlock(api, chatId, arg, false);
     case 'blockcat': return cmdBlockCat(api, chatId, arg, true);
     case 'unblockcat': return cmdBlockCat(api, chatId, arg, false);
+    case 'resetdriver': return cmdResetDriver(api, chatId, arg);
+    case 'checkdriver': return cmdCheckDriver(api, chatId, arg);
     default: return false;
   }
 }
@@ -487,6 +495,8 @@ function cmdHelp(api, chatId) {
     '/unblockcat <cat> \u2014 Enable vehicle category',
     '/block @user \u2014 Block user',
     '/unblock @user \u2014 Unblock user',
+    '/resetdriver @user \u2014 Reset stuck driver state',
+    '/checkdriver @user \u2014 Check driver state',
     '/drivers \u2014 List drivers',
     '/riders \u2014 List riders',
     '/users \u2014 All users',
@@ -521,6 +531,80 @@ function cmdStatus(api, chatId) {
       `\u{1F464} Total Users: ${Object.keys(data).length}`,
       '',
       `\u2705 Bot is running.`,
+    ];
+    api.sendMessage(chatId, lines.join('\n'));
+  });
+  return true;
+}
+
+function cmdResetDriver(api, chatId, arg) {
+  const username = (arg || '').replace('@', '').trim();
+  if (!username) {
+    api.sendMessage(chatId, '\u274C Usage: /resetdriver @username');
+    return true;
+  }
+
+  const db = firebaseDB.config();
+  db.ref('users').orderByChild('identity/username').equalTo(username).once('value', (snap) => {
+    const data = snap.val();
+    if (!data) {
+      api.sendMessage(chatId, `\u274C Driver @${username} not found.`);
+      return;
+    }
+    const userKey = Object.keys(data)[0];
+    const updates = {
+      tripStatus: null,
+      tripStartedAt: null,
+      tripStartLocation: null,
+      tripEndLocation: null,
+      currentOrder: null,
+      currentOrderKey: null,
+      pendingOrder: null,
+      driverArrived: null,
+      menuLocation: 'driver-index',
+    };
+    Object.keys(updates).forEach((key) => {
+      db.ref(`users/${userKey}/${key}`).set(updates[key]);
+    });
+    api.sendMessage(chatId,
+      `\u2705 Driver @${username} state has been reset.\n\n` +
+      `Trip status: cleared\n` +
+      `Menu: driver-index\n` +
+      `Current order: cleared\n\n` +
+      `Driver should now be able to receive new requests.`
+    );
+  });
+  return true;
+}
+
+function cmdCheckDriver(api, chatId, arg) {
+  const username = (arg || '').replace('@', '').trim();
+  if (!username) {
+    api.sendMessage(chatId, '\u274C Usage: /checkdriver @username');
+    return true;
+  }
+
+  const db = firebaseDB.config();
+  db.ref('users').orderByChild('identity/username').equalTo(username).once('value', (snap) => {
+    const data = snap.val();
+    if (!data) {
+      api.sendMessage(chatId, `\u274C Driver @${username} not found.`);
+      return;
+    }
+    const userKey = Object.keys(data)[0];
+    const u = data[userKey];
+    const lines = [
+      `\u{1F50E} Driver @${username} State:`,
+      '',
+      `\u{1F464} Name: ${u.driverName || 'N/A'}`,
+      `\u{1F4DE} Phone: ${u.phone || 'N/A'}`,
+      `\u{1F697} Vehicle: ${u.vehicleType || 'N/A'}`,
+      `\u{1F4CD} Menu: ${u.menuLocation || 'N/A'}`,
+      `\u{1F3C1} Trip Status: ${u.tripStatus || 'idle'}`,
+      `\u{1F4E6} Current Order: ${u.currentOrderKey ? 'YES' : 'none'}`,
+      `\u23F0 Pending Order: ${u.pendingOrder ? 'YES' : 'none'}`,
+      `\u{1F4CC} Start Location: ${u.tripStartLocation ? `[${u.tripStartLocation}]` : 'none'}`,
+      `\u{1F6AB} Blocked: ${u.blocked ? 'YES' : 'no'}`,
     ];
     api.sendMessage(chatId, lines.join('\n'));
   });

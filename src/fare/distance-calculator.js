@@ -1,5 +1,6 @@
 import osrmRoute from './osrm-client';
 import { getVehicleRate } from './fare-config';
+import log from '../log';
 
 const EARTH_RADIUS_KM = 6371;
 const KM_TO_MILES = 0.621371;
@@ -9,8 +10,18 @@ function toRad(deg) {
 }
 
 export default function calculateDistance(origin, destination) {
+  if (!origin || !destination || !Array.isArray(origin) || !Array.isArray(destination)) {
+    log.debug('calculateDistance: invalid coordinates, returning 0');
+    return { km: 0, miles: 0 };
+  }
+
   const [lat1, lon1] = origin;
   const [lat2, lon2] = destination;
+
+  if (!lat1 || !lon1 || !lat2 || !lon2) {
+    log.debug('calculateDistance: null/zero coordinates');
+    return { km: 0, miles: 0 };
+  }
 
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
@@ -21,17 +32,26 @@ export default function calculateDistance(origin, destination) {
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const km = EARTH_RADIUS_KM * c;
+  const km = Math.round(EARTH_RADIUS_KM * c * 100) / 100;
+
+  log.debug(`calculateDistance (Haversine): [${lat1},${lon1}] -> [${lat2},${lon2}] = ${km} km`);
 
   return {
-    km: Math.round(km * 100) / 100,
+    km,
     miles: Math.round(km * KM_TO_MILES * 100) / 100,
   };
 }
 
 export function calculateRoadDistance(origin, destination) {
+  log.debug(`calculateRoadDistance: [${origin}] -> [${destination}]`);
+
   return osrmRoute(origin, destination)
-    .catch(() => {
+    .then((result) => {
+      log.debug(`OSRM road distance: ${result.km} km (${result.durationMinutes} min)`);
+      return result;
+    })
+    .catch((err) => {
+      log.debug(`OSRM failed (${err.message}), falling back to Haversine`);
       const fallback = calculateDistance(origin, destination);
       fallback.durationMinutes = null;
       fallback.isEstimate = true;
@@ -59,6 +79,8 @@ export function calculateFareFromDistance(distanceKm, vehicleType, options = {})
   totalFare = round2(totalFare);
 
   const rateDescription = `First ${baseKm.toFixed(1)} km = ${rate.currencySymbol}${baseFare}, then ${rate.currencySymbol}${perKmRate}/km`;
+
+  log.debug(`FARE_CALC: ${distanceKm} km, vehicle=${vehicleType || 'car'}, base=${baseFare}, perKm=${perKmRate}, total=${totalFare}`);
 
   return {
     distanceKm,
