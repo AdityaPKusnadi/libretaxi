@@ -2,6 +2,7 @@ import Settings from '../../settings';
 import loadFareConfig, { saveFareConfig, saveRadius, getRadius, getVehicleRate } from '../fare/fare-config';
 import firebaseDB from '../firebase-db';
 import { getOracleConnection } from '../support/oracle-db';
+import { sendGroupLog, formatDate } from '../support/group-log';
 
 const settings = new Settings();
 
@@ -111,6 +112,8 @@ export default function handleAdminCommand(api, msg) {
       return cmdResetDriver(api, chatId, arg);
     case '/checkdriver':
       return cmdCheckDriver(api, chatId, arg);
+    case '/restart':
+      return cmdRestart(api, chatId);
     default:
       return false;
   }
@@ -505,6 +508,7 @@ function cmdHelp(api, chatId) {
     '/groupid \u2014 Get group ID',
     '/whoami \u2014 Your Telegram ID',
     '/session \u2014 Bot settings',
+    '/restart \u2014 Restart the bot',
   ];
   api.sendMessage(chatId, lines.join('\n'));
   return true;
@@ -608,5 +612,33 @@ function cmdCheckDriver(api, chatId, arg) {
     ];
     api.sendMessage(chatId, lines.join('\n'));
   });
+  return true;
+}
+
+function cmdRestart(api, chatId) {
+  const restartMsg = [
+    '\u{1F504} Bot is restarting...',
+    '',
+    'The bot will be back online in a few seconds.',
+    'All pending orders will be recovered automatically.',
+  ];
+  api.sendMessage(chatId, restartMsg.join('\n'));
+
+  const groupMsg = [
+    '\u{1F504} Connect \u2014 Bot Restart',
+    '',
+    `Initiated by admin (${chatId})`,
+    'Pending orders will be re-sent to drivers on startup.',
+    '',
+    formatDate(),
+  ];
+  sendGroupLog(groupMsg.join('\n'));
+
+  setTimeout(() => {
+    console.log('Admin-initiated restart...');
+    try { api.stopPolling(); } catch (e) { /* ignore */ }
+    process.exit(0);
+  }, 2000);
+
   return true;
 }

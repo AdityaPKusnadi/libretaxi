@@ -10,6 +10,9 @@ import InlineButtonCallback from './response-handlers/common/inline-button-callb
 import Settings from '../settings';
 import handleAdminCommand from './admin/admin-command-handler';
 import { loadFareConfigFromOracle, loadRadiusFromOracle } from './fare/fare-config';
+import firebaseDB from './firebase-db';
+import GeoFire from 'geofire';
+import Order from './order';
 
 const settings = new Settings();
 const api = new TelegramBot(settings.TELEGRAM_TOKEN, {
@@ -28,6 +31,7 @@ loadFareConfigFromOracle().then((config) => {
   loadRadiusFromOracle(settings.MAX_RADIUS).then((radius) => {
     settings.MAX_RADIUS = radius;
     console.log(`OK ${settings.BOT_NAME} bot is waiting for messages... (radius: ${radius} km)`);
+    recoverPendingOrders();
   });
 });
 
@@ -57,6 +61,7 @@ const adminCommands = [
   { command: 'groupid', description: 'Get group ID for logs' },
   { command: 'whoami', description: 'Show your sender ID' },
   { command: 'session', description: 'Session settings' },
+  { command: 'restart', description: 'Restart the bot' },
 ];
 
 const TG_API = `https://api.telegram.org/bot${settings.TELEGRAM_TOKEN}`;
@@ -249,6 +254,115 @@ queue.process((job, done) => {
   })
   .then(() => done());
 });
+
+function recoverPendingOrders() {
+  const STALE_THRESHOLD_MS = 15 * 60 * 1000;
+  const db = firebaseDB.config();
+
+  db.ref('orders').orderByChild('status').equalTo('new').once('value', (snap) => {
+    const orders = snap.val();
+    if (!orders) {
+      console.log('No pending orders to recover.');
+      return;
+    }
+
+    const now = Date.now();
+    const orderKeys = Object.keys(orders);
+    let recovered = 0;
+
+    orderKeys.forEach((orderKey) => {
+      const order = orders[orderKey];
+
+      if (order.createdAt && (now - order.createdAt) > STALE_THRESHOLD_MS) {
+        console.log(`Skipping stale order ${orderKey} (too old)`);
+        return;
+      }
+
+      const passengerKey = order.passengerKey;
+      if (!passengerKey) return;
+
+      console.log(`Recovering order ${orderKey} — re-sending to nearby drivers...`);
+      recovered++;
+
+      const geoFire = new GeoFire(db.ref('users'));
+      const candidates = [];
+      const q = geoFire.query({
+        center: order.passengerLocation,
+        radius: settings.MAX_RADIUS * 1,
+      });
+
+      q.on('key_entered', (userKey, location, distance) => {
+        candidates.push({ userKey, location, distance });
+      });
+
+      setTimeout(() => {
+        q.cancel();
+        candidates.sort((a, b) => a.distance - b.distance);
+        console.log(`Found ${candidates.length} driver candidates for recovered order ${orderKey}`);
+
+        notifyFirstEligibleDriver(candidates, 0, order, orderKey);
+      }, 3000);
+    });
+
+    if (recovered > 0) {
+      console.log(`Recovering ${recovered} pending order(s)...`);
+    }
+  });
+}
+
+function notifyFirstEligibleDriver(candidates, index, order, orderKey) {
+  if (index >= candidates.length) {
+    console.log(`No eligible driver found for recovered order ${orderKey}`);
+    return;
+  }
+
+  const c = candidates[index];
+
+  loadUser(c.userKey).then((user) => {
+    if (user.state.userType !== 'driver' ||
+        user.state.muted ||
+        user.state.blocked ||
+        user.state.vehicleType !== order.requestedVehicleType ||
+        user.state.menuLocation !== 'driver-index' ||
+        user.state.tripStatus === 'accepted' ||
+        user.state.tripStatus === 'in_progress' ||
+        user.state.pendingOrder) {
+      notifyFirstEligibleDriver(candidates, index + 1, order, orderKey);
+      return;
+    }
+
+    if (c.distance > (user.state.radius || settings.MAX_RADIUS) * 1) {
+      notifyFirstEligibleDriver(candidates, index + 1, order, orderKey);
+      return;
+    }
+
+    console.log(`Re-sending order ${orderKey} to driver ${c.userKey} (distance: ${c.distance})`);
+
+    const db = firebaseDB.config();
+    db.ref(`users/${c.userKey}/pendingOrder`).set(orderKey);
+
+    db.ref(`orders/${orderKey}/assignedDriver`).set(c.userKey);
+
+    const recoveryQueue = new CaQueue();
+    const arg = {
+      orderKey,
+      distance: c.distance,
+      from: order.passengerLocation,
+      to: order.passengerDestination,
+      price: order.price,
+      passengerKey: order.passengerKey,
+      passengerName: order.passengerName || null,
+      passengerUsername: order.passengerUsername || null,
+      passengerPhone: order.passengerPhone || null,
+      calculatedFare: order.calculatedFare || null,
+      destinationLocation: order.destinationLocation || null,
+      rideNum: order.rideNum || null,
+    };
+    recoveryQueue.create({ userKey: c.userKey, arg, route: 'driver-order-new' });
+  }).catch(() => {
+    notifyFirstEligibleDriver(candidates, index + 1, order, orderKey);
+  });
+}
 
 process.once('SIGTERM', () => {
   console.log('Shutting down gracefully...');
