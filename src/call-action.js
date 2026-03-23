@@ -38,7 +38,17 @@ export default (options) => { // eslint-disable-line
   const action = ActionFactory.fromRoute({ route, user });
   log.debug(`calling ${action.type} with ${options.arg}`);
   log.debug(options.arg);
-  const response = action.call(options.arg);
+  let response;
+  try {
+    response = action.call(options.arg);
+  } catch (e) {
+    console.error(`[ACTION] Error calling action ${route} for ${user.userKey}:`, e);
+    return;
+  }
+  if (!response) {
+    console.error(`[ACTION] Action ${route} returned no response for ${user.userKey}`);
+    return;
+  }
   const handler = ResponseHandlerFactory.getHandler({ response, user, api: options.api });
   const userKey = user.userKey;
 

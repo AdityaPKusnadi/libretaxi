@@ -55,6 +55,11 @@ export default class InlineButtonCallback extends
   call() {
     const response = ((this.user.state.inlineValues || {}).hash || {})[this.value] ||
       new EmptyResponse();
+    if (response.type === 'empty') {
+      console.log(`[INLINE] No response found for value=${this.value}, user=${this.user.userKey}. inlineValues keys: ${Object.keys((this.user.state.inlineValues || {}).hash || {}).join(', ')}`);
+    } else {
+      console.log(`[INLINE] Processing callback for user=${this.user.userKey}, responseType=${response.type}, route=${response.route || 'N/A'}`);
+    }
     const handler = ResponseHandlerFactory.getHandler({ response, user: this.user, api: this.api });
     handler.call(() => {});
   }

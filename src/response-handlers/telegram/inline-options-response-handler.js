@@ -57,9 +57,10 @@ export default class InlineOptionsResponseHandler extends ResponseHandler {
     }));
 
     const message = this.response.message || this.response.defaultMessage || 'Your choice?';
+    const enableNotification = message.includes('\u{1F514}');
     this.api.sendMessage(this.user.platformId, message,
       {
-        disable_notification: true,
+        disable_notification: !enableNotification,
         reply_markup: JSON.stringify({ inline_keyboard: rows }),
       }).catch(telegramErrors);
 

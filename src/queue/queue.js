@@ -75,9 +75,13 @@ export default class Queue extends mix(class {}).with(checkNotNull('type')) {
     const poll = async () => {
       const processed = await processNextJobOracle(this.type, async (job, done) => {
          try {
-           await callback(job, done);
+           const result = callback(job, done);
+           // Await the result if it's a promise (ensures job completes before moving on)
+           if (result && typeof result.then === 'function') {
+             await result;
+           }
          } catch(e) {
-           console.error('Job processing error:', e);
+           console.error('[QUEUE] Job processing error:', e);
            done();
          }
       });

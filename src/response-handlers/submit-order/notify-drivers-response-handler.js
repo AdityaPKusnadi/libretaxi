@@ -25,7 +25,7 @@ import log from '../../log';
 import CaQueue from '../../queue/ca-queue';
 import Settings from '../../../settings';
 
-const COLLECT_WINDOW_MS = 3000;
+const COLLECT_WINDOW_MS = 4000;
 const RETRY_INTERVAL_MS = 15000;
 const MAX_RETRIES = 20;
 
@@ -47,45 +47,79 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
     this.ensureInitialized();
     const r = this.response;
 
+    console.log(`[NOTIFY] Starting driver notification for passengerKey=${r.passengerKey}`);
+
     loadUser(r.passengerKey).then((passenger) => {
       const orderKey = passenger.state.currentOrderKey;
+      if (!orderKey) {
+        console.error(`[NOTIFY] ERROR: passenger ${r.passengerKey} has no currentOrderKey!`);
+        onResult();
+        return;
+      }
+      console.log(`[NOTIFY] Loading order ${orderKey} for passenger ${r.passengerKey}`);
       new Order({ orderKey }).load().then((order) => {
         this.order = order;
         this.orderKey = orderKey;
+        const loc = order.state.passengerLocation;
+        console.log(`[NOTIFY] Order ${orderKey} loaded. status=${order.state.status}, location=${JSON.stringify(loc)}, vehicleType=${order.state.requestedVehicleType}, radius=${this.settings.MAX_RADIUS}`);
+        if (!loc || !Array.isArray(loc) || loc.length < 2) {
+          console.error(`[NOTIFY] ERROR: Invalid passengerLocation for order ${orderKey}: ${JSON.stringify(loc)}`);
+          onResult();
+          return;
+        }
         this.collectAndNotify();
         this.startRetryLoop();
         onResult();
+      }).catch((err) => {
+        console.error(`[NOTIFY] ERROR loading order for passenger ${r.passengerKey}:`, err);
+        onResult();
       });
+    }).catch((err) => {
+      console.error(`[NOTIFY] ERROR loading passenger ${r.passengerKey}:`, err);
+      onResult();
     });
   }
 
   collectAndNotify() {
     const candidates = [];
+    const loc = this.order.state.passengerLocation;
+    const radius = this.settings.MAX_RADIUS * 1;
+    console.log(`[NOTIFY] GeoFire query: center=${JSON.stringify(loc)}, radius=${radius}km for order ${this.orderKey}`);
+
+    let queryError = false;
     const q = this.geoFire.query({
-      center: this.order.state.passengerLocation,
-      radius: this.settings.MAX_RADIUS * 1,
+      center: loc,
+      radius: radius,
     });
 
     q.on('key_entered', (userKey, location, distance) => {
-      log.debug(`candidate found: ${userKey}, distance: ${distance}`);
+      console.log(`[NOTIFY] GeoFire candidate: ${userKey}, distance: ${distance.toFixed(2)}km`);
       candidates.push({ userKey, location, distance });
+    });
+
+    q.on('error', (err) => {
+      console.error(`[NOTIFY] GeoFire query error for order ${this.orderKey}:`, err);
+      queryError = true;
     });
 
     setTimeout(() => {
       q.cancel();
       candidates.sort((a, b) => a.distance - b.distance);
-      log.debug(`collected ${candidates.length} driver candidates for order ${this.orderKey}`);
+      console.log(`[NOTIFY] Collected ${candidates.length} GeoFire candidates for order ${this.orderKey}`);
+      if (candidates.length === 0 && !queryError) {
+        console.log(`[NOTIFY] No nearby users found within ${radius}km of ${JSON.stringify(loc)}. Will retry.`);
+      }
       this.tryNotifyFromList(candidates, 0);
     }, COLLECT_WINDOW_MS);
   }
 
   clearPreviousDriver() {
     if (this.currentAssignedDriver) {
-      log.debug(`clearing pendingOrder from previous driver: ${this.currentAssignedDriver}`);
+      console.log(`[NOTIFY] Clearing pendingOrder from previous driver: ${this.currentAssignedDriver}`);
       try {
         firebaseDB.config().ref(`users/${this.currentAssignedDriver}/pendingOrder`).remove();
       } catch (e) {
-        log.debug(`error clearing pendingOrder: ${e}`);
+        console.error(`[NOTIFY] Error clearing pendingOrder: ${e}`);
       }
       this.currentAssignedDriver = null;
     }
@@ -93,13 +127,13 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
 
   tryNotifyFromList(candidates, index) {
     if (index >= candidates.length) {
-      log.debug(`no eligible driver found in this round for order ${this.orderKey}`);
+      console.log(`[NOTIFY] No eligible driver found in this round for order ${this.orderKey} (checked ${candidates.length} candidates)`);
       return;
     }
 
     new Order({ orderKey: this.orderKey }).load().then((order) => {
       if (order.state.status !== 'new') {
-        log.debug(`order ${this.orderKey} already accepted, stopping`);
+        console.log(`[NOTIFY] Order ${this.orderKey} status=${order.state.status}, stopping notification`);
         return;
       }
       this.order = order;
@@ -112,51 +146,29 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
       }
 
       loadUser(c.userKey).then((user) => {
-        if (user.state.userType !== 'driver') {
-          this.tryNotifyFromList(candidates, index + 1);
-          return;
-        }
-        if (user.state.muted) {
-          this.tryNotifyFromList(candidates, index + 1);
-          return;
-        }
-        if (user.state.blocked) {
-          this.tryNotifyFromList(candidates, index + 1);
-          return;
-        }
-        if (user.state.vehicleType !== order.state.requestedVehicleType) {
-          this.tryNotifyFromList(candidates, index + 1);
-          return;
-        }
-        if (user.state.menuLocation !== 'driver-index') {
-          this.tryNotifyFromList(candidates, index + 1);
-          return;
-        }
-        if (user.state.tripStatus === 'accepted' || user.state.tripStatus === 'in_progress') {
-          this.tryNotifyFromList(candidates, index + 1);
-          return;
-        }
-        if (user.state.pendingOrder) {
-          this.tryNotifyFromList(candidates, index + 1);
-          return;
-        }
-        if (c.distance > user.state.radius * 1) {
+        const skipReason = this.getSkipReason(user, order, c);
+        if (skipReason) {
+          console.log(`[NOTIFY] Skipping ${c.userKey}: ${skipReason}`);
           this.tryNotifyFromList(candidates, index + 1);
           return;
         }
 
-        log.debug(`notifying closest eligible driver: ${c.userKey} (distance ${c.distance}) for order ${this.orderKey}`);
+        console.log(`[NOTIFY] >>> Notifying driver ${c.userKey} (distance ${c.distance.toFixed(2)}km) for order ${this.orderKey}`);
 
         this.clearPreviousDriver();
 
-        try {
-          firebaseDB.config().ref(`users/${c.userKey}/pendingOrder`).set(order.orderKey);
-        } catch (e) {
-          log.debug(`error setting pendingOrder: ${e}`);
-        }
+        firebaseDB.config().ref(`users/${c.userKey}/pendingOrder`).set(order.orderKey)
+          .then(() => {
+            console.log(`[NOTIFY] Set pendingOrder=${order.orderKey} on driver ${c.userKey}`);
+          })
+          .catch((e) => {
+            console.error(`[NOTIFY] Error setting pendingOrder on ${c.userKey}:`, e);
+          });
 
         order.setState({ assignedDriver: c.userKey });
-        order.save();
+        order.save(() => {
+          console.log(`[NOTIFY] Order ${this.orderKey} assignedDriver=${c.userKey} saved`);
+        });
 
         this.currentAssignedDriver = c.userKey;
         this.notifiedForOrder[c.userKey] = true;
@@ -176,14 +188,47 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
           destinationLocation: order.state.destinationLocation || null,
           rideNum: order.state.rideNum || null,
         };
+        console.log(`[NOTIFY] Enqueueing driver-order-new for driver ${c.userKey}, orderKey=${order.orderKey}`);
         queue.create({ userKey: c.userKey, arg, route: 'driver-order-new' });
 
         order.markNotified(c.userKey);
         order.save();
-      }).catch(() => {
+      }).catch((err) => {
+        console.error(`[NOTIFY] Error loading user ${c.userKey}:`, err);
         this.tryNotifyFromList(candidates, index + 1);
       });
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error(`[NOTIFY] Error reloading order ${this.orderKey}:`, err);
+    });
+  }
+
+  getSkipReason(user, order, candidate) {
+    if (user.state.userType !== 'driver') {
+      return `not a driver (userType=${user.state.userType})`;
+    }
+    if (user.state.muted) {
+      return 'driver is muted';
+    }
+    if (user.state.blocked) {
+      return 'driver is blocked';
+    }
+    if (user.state.vehicleType !== order.state.requestedVehicleType) {
+      return `vehicleType mismatch (driver=${user.state.vehicleType}, requested=${order.state.requestedVehicleType})`;
+    }
+    if (user.state.menuLocation !== 'driver-index') {
+      return `not at driver-index (menuLocation=${user.state.menuLocation})`;
+    }
+    if (user.state.tripStatus === 'accepted' || user.state.tripStatus === 'in_progress') {
+      return `trip in progress (tripStatus=${user.state.tripStatus})`;
+    }
+    if (user.state.pendingOrder) {
+      return `has pending order (pendingOrder=${user.state.pendingOrder})`;
+    }
+    const driverRadius = user.state.radius;
+    if (driverRadius && candidate.distance > driverRadius * 1) {
+      return `out of driver radius (distance=${candidate.distance.toFixed(2)}, radius=${driverRadius})`;
+    }
+    return null;
   }
 
   startRetryLoop() {
@@ -193,7 +238,7 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
       retryCount++;
 
       if (retryCount >= MAX_RETRIES) {
-        log.debug(`driver search retry limit reached for order ${this.orderKey}`);
+        console.log(`[NOTIFY] Retry limit reached (${MAX_RETRIES}) for order ${this.orderKey}`);
         this.clearPreviousDriver();
         clearInterval(this.retryTimer);
         return;
@@ -201,23 +246,25 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
 
       new Order({ orderKey: this.orderKey }).load().then((order) => {
         if (order.state.status !== 'new') {
-          log.debug(`order ${this.orderKey} is no longer new, stopping retry`);
+          console.log(`[NOTIFY] Order ${this.orderKey} status=${order.state.status}, stopping retry`);
           clearInterval(this.retryTimer);
           return;
         }
 
-        if ((new Date()).getTime() > (order.state.createdAt || 0) + 15 * 60 * 1000) {
-          log.debug(`order ${this.orderKey} is stale, stopping retry`);
+        const createdAt = order.state.createdAt;
+        if (createdAt && typeof createdAt === 'number' &&
+            (new Date()).getTime() > createdAt + 15 * 60 * 1000) {
+          console.log(`[NOTIFY] Order ${this.orderKey} is stale (age=${Math.round(((new Date()).getTime() - createdAt) / 1000)}s), stopping retry`);
           this.clearPreviousDriver();
           clearInterval(this.retryTimer);
           return;
         }
 
         this.order = order;
-        log.debug(`retrying driver search for order ${this.orderKey} (retry ${retryCount}/${MAX_RETRIES})`);
+        console.log(`[NOTIFY] Retry ${retryCount}/${MAX_RETRIES} for order ${this.orderKey}`);
         this.collectAndNotify();
       }).catch((err) => {
-        log.debug(`retry error for order ${this.orderKey}: ${err}`);
+        console.error(`[NOTIFY] Retry error for order ${this.orderKey}:`, err);
       });
     }, RETRY_INTERVAL_MS);
   }

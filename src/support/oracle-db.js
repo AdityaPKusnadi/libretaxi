@@ -162,7 +162,10 @@ export async function getConfigFromOracle(key) {
 export async function enqueueJobOracle(type, data, delayMs = 0) {
   try {
     const connection = await getOracleConnection();
-    if (!connection) return;
+    if (!connection) {
+      console.error('[ORACLE-Q] No connection available to enqueue job:', type);
+      return;
+    }
     try {
       const processAfter = new Date(Date.now() + delayMs);
       const sql = `
@@ -174,11 +177,12 @@ export async function enqueueJobOracle(type, data, delayMs = 0) {
         data: JSON.stringify(data), 
         processAfter 
       });
+      console.log(`[ORACLE-Q] Enqueued job: type=${type}, route=${data.route || 'N/A'}, userKey=${data.userKey || 'N/A'}, delay=${delayMs}ms`);
     } finally {
       await connection.close();
     }
   } catch (err) {
-    console.error('Error enqueueing job to Oracle:', err);
+    console.error('[ORACLE-Q] Error enqueueing job:', type, err);
   }
 }
 
@@ -202,15 +206,24 @@ export async function processNextJobOracle(type, callback) {
         }
         const jobData = JSON.parse(jobDataStr);
 
+        console.log(`[ORACLE-Q] Processing job #${jobId}: type=${type}, route=${jobData.route || 'N/A'}, userKey=${jobData.userKey || 'N/A'}`);
+
         // Update status to processing
         await connection.execute(`UPDATE queue_jobs SET status = 'processing' WHERE id = :id`, { id: jobId });
         
         // Execute callback
         await callback({ data: jobData, type }, async () => {
            // On done, mark as completed
-           const conn2 = await getOracleConnection();
-           await conn2.execute(`UPDATE queue_jobs SET status = 'completed' WHERE id = :id`, { id: jobId });
-           await conn2.close();
+           try {
+             const conn2 = await getOracleConnection();
+             if (conn2) {
+               await conn2.execute(`UPDATE queue_jobs SET status = 'completed' WHERE id = :id`, { id: jobId });
+               await conn2.close();
+               console.log(`[ORACLE-Q] Job #${jobId} completed: route=${jobData.route || 'N/A'}`);
+             }
+           } catch (doneErr) {
+             console.error(`[ORACLE-Q] Error marking job #${jobId} as completed:`, doneErr);
+           }
         });
         return true;
       }
@@ -219,7 +232,7 @@ export async function processNextJobOracle(type, callback) {
       await connection.close();
     }
   } catch (err) {
-    // console.error('Error processing job from Oracle:', err);
+    console.error('[ORACLE-Q] Error processing job:', err);
     return false;
   }
 }

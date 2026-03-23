@@ -243,7 +243,9 @@ api.on('callback_query', (msg) => {
 
 queue.process((job, done) => {
   const data = job.data;
-  withUser(data.userKey, (user) => {
+  console.log(`[QUEUE] Processing job: route=${data.route}, userKey=${data.userKey}`);
+  return withUser(data.userKey, (user) => {
+    console.log(`[QUEUE] Calling action: route=${data.route}, userKey=${data.userKey}, platformId=${user.platformId}`);
     callAction({
       user,
       arg: data.arg,
@@ -252,7 +254,14 @@ queue.process((job, done) => {
       api,
     });
   })
-  .then(() => done());
+  .then(() => {
+    console.log(`[QUEUE] Job done: route=${data.route}, userKey=${data.userKey}`);
+    done();
+  })
+  .catch((err) => {
+    console.error(`[QUEUE] Job error: route=${data.route}, userKey=${data.userKey}`, err);
+    done();
+  });
 });
 
 function recoverPendingOrders() {
@@ -262,7 +271,7 @@ function recoverPendingOrders() {
   db.ref('orders').orderByChild('status').equalTo('new').once('value', (snap) => {
     const orders = snap.val();
     if (!orders) {
-      console.log('No pending orders to recover.');
+      console.log('[RECOVER] No pending orders to recover.');
       return;
     }
 
@@ -274,20 +283,29 @@ function recoverPendingOrders() {
       const order = orders[orderKey];
 
       if (order.createdAt && (now - order.createdAt) > STALE_THRESHOLD_MS) {
-        console.log(`Skipping stale order ${orderKey} (too old)`);
+        console.log(`[RECOVER] Skipping stale order ${orderKey} (too old)`);
         return;
       }
 
       const passengerKey = order.passengerKey;
-      if (!passengerKey) return;
+      if (!passengerKey) {
+        console.log(`[RECOVER] Skipping order ${orderKey} — no passengerKey`);
+        return;
+      }
 
-      console.log(`Recovering order ${orderKey} — re-sending to nearby drivers...`);
+      const loc = order.passengerLocation;
+      if (!loc || !Array.isArray(loc) || loc.length < 2) {
+        console.log(`[RECOVER] Skipping order ${orderKey} — invalid passengerLocation: ${JSON.stringify(loc)}`);
+        return;
+      }
+
+      console.log(`[RECOVER] Recovering order ${orderKey} — re-sending to nearby drivers...`);
       recovered++;
 
       const geoFire = new GeoFire(db.ref('users'));
       const candidates = [];
       const q = geoFire.query({
-        center: order.passengerLocation,
+        center: loc,
         radius: settings.MAX_RADIUS * 1,
       });
 
@@ -298,45 +316,57 @@ function recoverPendingOrders() {
       setTimeout(() => {
         q.cancel();
         candidates.sort((a, b) => a.distance - b.distance);
-        console.log(`Found ${candidates.length} driver candidates for recovered order ${orderKey}`);
+        console.log(`[RECOVER] Found ${candidates.length} driver candidates for recovered order ${orderKey}`);
 
         notifyFirstEligibleDriver(candidates, 0, order, orderKey);
-      }, 3000);
+      }, 4000);
     });
 
     if (recovered > 0) {
-      console.log(`Recovering ${recovered} pending order(s)...`);
+      console.log(`[RECOVER] Recovering ${recovered} pending order(s)...`);
     }
   });
 }
 
 function notifyFirstEligibleDriver(candidates, index, order, orderKey) {
   if (index >= candidates.length) {
-    console.log(`No eligible driver found for recovered order ${orderKey}`);
+    console.log(`[RECOVER] No eligible driver found for recovered order ${orderKey} (checked ${candidates.length} candidates)`);
     return;
   }
 
   const c = candidates[index];
 
   loadUser(c.userKey).then((user) => {
-    if (user.state.userType !== 'driver' ||
-        user.state.muted ||
-        user.state.blocked ||
-        user.state.vehicleType !== order.requestedVehicleType ||
-        user.state.menuLocation !== 'driver-index' ||
-        user.state.tripStatus === 'accepted' ||
-        user.state.tripStatus === 'in_progress' ||
-        user.state.pendingOrder) {
+    // Check eligibility with logging
+    let skipReason = null;
+    if (user.state.userType !== 'driver') {
+      skipReason = `not a driver (userType=${user.state.userType})`;
+    } else if (user.state.muted) {
+      skipReason = 'muted';
+    } else if (user.state.blocked) {
+      skipReason = 'blocked';
+    } else if (user.state.vehicleType !== order.requestedVehicleType) {
+      skipReason = `vehicleType mismatch (driver=${user.state.vehicleType}, requested=${order.requestedVehicleType})`;
+    } else if (user.state.menuLocation !== 'driver-index') {
+      skipReason = `not at driver-index (menuLocation=${user.state.menuLocation})`;
+    } else if (user.state.tripStatus === 'accepted' || user.state.tripStatus === 'in_progress') {
+      skipReason = `trip in progress (tripStatus=${user.state.tripStatus})`;
+    } else if (user.state.pendingOrder) {
+      skipReason = `has pending order (${user.state.pendingOrder})`;
+    } else {
+      const driverRadius = user.state.radius || settings.MAX_RADIUS;
+      if (c.distance > driverRadius * 1) {
+        skipReason = `out of radius (distance=${c.distance.toFixed(2)}, radius=${driverRadius})`;
+      }
+    }
+
+    if (skipReason) {
+      console.log(`[RECOVER] Skipping ${c.userKey}: ${skipReason}`);
       notifyFirstEligibleDriver(candidates, index + 1, order, orderKey);
       return;
     }
 
-    if (c.distance > (user.state.radius || settings.MAX_RADIUS) * 1) {
-      notifyFirstEligibleDriver(candidates, index + 1, order, orderKey);
-      return;
-    }
-
-    console.log(`Re-sending order ${orderKey} to driver ${c.userKey} (distance: ${c.distance})`);
+    console.log(`[RECOVER] >>> Re-sending order ${orderKey} to driver ${c.userKey} (distance: ${c.distance.toFixed(2)}km)`);
 
     const db = firebaseDB.config();
     db.ref(`users/${c.userKey}/pendingOrder`).set(orderKey);
@@ -359,7 +389,8 @@ function notifyFirstEligibleDriver(candidates, index, order, orderKey) {
       rideNum: order.rideNum || null,
     };
     recoveryQueue.create({ userKey: c.userKey, arg, route: 'driver-order-new' });
-  }).catch(() => {
+  }).catch((err) => {
+    console.error(`[RECOVER] Error loading user ${c.userKey}:`, err);
     notifyFirstEligibleDriver(candidates, index + 1, order, orderKey);
   });
 }

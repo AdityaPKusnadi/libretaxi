@@ -34,6 +34,7 @@ export default class DriverOrderNew extends Action {
   }
 
   call(args) {
+    console.log(`[DRIVER-NEW] Driver ${this.user.userKey} receiving trip request, orderKey=${args.orderKey}`);
     const response = new CompositeResponse();
 
     const acceptGuid = `accept_${args.orderKey}_${Date.now()}`;
@@ -64,7 +65,7 @@ export default class DriverOrderNew extends Action {
     const tripDistance = fare.distanceKm ? `${fare.distanceKm} km` : 'N/A';
 
     const lines = [];
-    lines.push('New Trip Request');
+    lines.push('\u{1F514} New Trip Request');
     lines.push('');
     lines.push(`Rider ${distDisplay} away`);
     lines.push(`Estimated distance: ${tripDistance}`);
