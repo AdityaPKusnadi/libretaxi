@@ -99,20 +99,15 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
       candidates.push({ userKey, location, distance });
     });
 
-    q.on('error', (err) => {
-      console.error(`[NOTIFY] GeoFire query error for order ${this.orderKey}:`, err);
-      queryError = true;
-    });
-
-    setTimeout(() => {
+    q.on('ready', () => {
       q.cancel();
       candidates.sort((a, b) => a.distance - b.distance);
       console.log(`[NOTIFY] Collected ${candidates.length} GeoFire candidates for order ${this.orderKey}`);
-      if (candidates.length === 0 && !queryError) {
+      if (candidates.length === 0) {
         console.log(`[NOTIFY] No nearby users found within ${radius}km of ${JSON.stringify(loc)}. Will retry.`);
       }
       this.tryNotifyFromList(candidates, 0);
-    }, COLLECT_WINDOW_MS);
+    });
   }
 
   clearPreviousDriver() {
