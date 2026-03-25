@@ -39,6 +39,7 @@ const userCommands = [
   { command: 'start', description: 'Start bot / main menu' },
   { command: 'cancel', description: 'Cancel current action' },
   { command: 'cancelride', description: 'Cancel active ride' },
+  { command: 'regis', description: 'Re-register (reset profile)' },
 ];
 
 const adminCommands = [
@@ -124,6 +125,28 @@ api.on('message', (msg) => {
 
     if (something === '/start') menuLocation = 'system-reset-user';
     if (something === '/cancel') menuLocation = 'system-reset-user';
+    if (something === '/regis') {
+      // Clear all registration state and restart
+      firebaseDB.config().ref(`users/${userKey}`).update({
+        vehicleType: null,
+        driverName: null,
+        vehiclePlate: null,
+        userType: null,
+        phone: null,
+        pendingOrder: null,
+        tripStatus: null,
+        currentOrderKey: null,
+        driverKey: null,
+        driverPhone: null,
+        menuLocation: 'default',
+        muted: null,
+        radius: null,
+        currentOrder: null,
+      });
+      api.sendMessage(msg.chat.id, '\u{1F504} Registration reset! Please choose your role below:');
+      queue.create({ userKey, arg: null, route: 'default' });
+      return;
+    }
     if (something === '/cancelride') {
       const orderKey = user.state.currentOrderKey;
       const driverKey = user.state.driverKey;
@@ -345,7 +368,8 @@ function notifyFirstEligibleDriver(candidates, index, order, orderKey) {
       skipReason = 'muted';
     } else if (user.state.blocked) {
       skipReason = 'blocked';
-    } else if (user.state.vehicleType !== order.requestedVehicleType) {
+    } else if (user.state.vehicleType && order.requestedVehicleType &&
+               user.state.vehicleType !== order.requestedVehicleType) {
       skipReason = `vehicleType mismatch (driver=${user.state.vehicleType}, requested=${order.requestedVehicleType})`;
     } else if (user.state.menuLocation !== 'driver-index') {
       skipReason = `not at driver-index (menuLocation=${user.state.menuLocation})`;
@@ -369,26 +393,69 @@ function notifyFirstEligibleDriver(candidates, index, order, orderKey) {
     console.log(`[RECOVER] >>> Re-sending order ${orderKey} to driver ${c.userKey} (distance: ${c.distance.toFixed(2)}km)`);
 
     const db = firebaseDB.config();
-    db.ref(`users/${c.userKey}/pendingOrder`).set(orderKey);
-
     db.ref(`orders/${orderKey}/assignedDriver`).set(c.userKey);
 
-    const recoveryQueue = new CaQueue();
-    const arg = {
-      orderKey,
-      distance: c.distance,
-      from: order.passengerLocation,
-      to: order.passengerDestination,
-      price: order.price,
-      passengerKey: order.passengerKey,
-      passengerName: order.passengerName || null,
-      passengerUsername: order.passengerUsername || null,
-      passengerPhone: order.passengerPhone || null,
-      calculatedFare: order.calculatedFare || null,
-      destinationLocation: order.destinationLocation || null,
-      rideNum: order.rideNum || null,
+    // Build notification content
+    const fare = order.calculatedFare || {};
+    const fareDisplay = fare.totalFare
+      ? `~${fare.currencySymbol || 'LKR '}${fare.totalFare}`
+      : `~${order.price || '0'}`;
+    const tripDistance = fare.distanceKm ? `${fare.distanceKm} km` : 'N/A';
+
+    const lines = [];
+    lines.push('\u{1F514} New Trip Request');
+    lines.push('');
+    lines.push(`Rider ${c.distance.toFixed(2)} km away`);
+    lines.push(`Estimated distance: ${tripDistance}`);
+    lines.push(`Estimated fare: ${fareDisplay}`);
+    if (order.rideNum) lines.push(`Ride #${order.rideNum}`);
+
+    // Create accept callback
+    const acceptGuid = `accept_${orderKey}_${Date.now()}`;
+    const acceptResponse = {
+      type: 'call-action',
+      userKey: c.userKey,
+      route: 'driver-accept-ride',
+      arg: {
+        passengerKey: order.passengerKey || null,
+        passengerName: order.passengerName || null,
+        passengerPhone: order.passengerPhone || null,
+        passengerUsername: order.passengerUsername || null,
+        orderKey,
+        passengerLocation: order.passengerLocation || null,
+        destinationLocation: order.destinationLocation || null,
+        calculatedFare: fare,
+        passengerDestination: order.passengerDestination || null,
+        rideNum: order.rideNum || null,
+      },
     };
-    recoveryQueue.create({ userKey: c.userKey, arg, route: 'driver-order-new' });
+
+    const HistoryHash = require('./support/history-hash').default;
+    const inlineValuesUpdate = {};
+    inlineValuesUpdate[acceptGuid] = acceptResponse;
+    const mergedInlineValues = new HistoryHash(user.state.inlineValues).merge(inlineValuesUpdate);
+
+    user.setState({
+      inlineValues: mergedInlineValues,
+      pendingOrder: orderKey,
+    });
+
+    user.save(() => {
+      console.log(`[RECOVER] Saved inlineValues + pendingOrder on driver ${c.userKey}`);
+      const chatId = user.platformId;
+      api.sendMessage(chatId, lines.join('\n'), {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '\u{1F7E1} Accept', callback_data: acceptGuid },
+          ]],
+        },
+        disable_notification: false,
+      }).then(() => {
+        console.log(`[RECOVER] \u2705 Direct notification SENT to driver ${c.userKey}`);
+      }).catch((err) => {
+        console.error(`[RECOVER] \u274C Direct notification FAILED for ${c.userKey}:`, err.message || err);
+      });
+    });
   }).catch((err) => {
     console.error(`[RECOVER] Error loading user ${c.userKey}:`, err);
     notifyFirstEligibleDriver(candidates, index + 1, order, orderKey);

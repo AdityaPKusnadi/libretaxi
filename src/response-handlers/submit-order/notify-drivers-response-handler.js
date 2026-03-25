@@ -24,6 +24,7 @@ import { loadUser } from '../../factories/user-factory';
 import log from '../../log';
 import CaQueue from '../../queue/ca-queue';
 import Settings from '../../../settings';
+import HistoryHash from '../../support/history-hash';
 
 const COLLECT_WINDOW_MS = 4000;
 const RETRY_INTERVAL_MS = 15000;
@@ -34,6 +35,7 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
   constructor(options) {
     super(Object.assign({ type: 'notify-drivers-response-handler' }, options));
     this.settings = options.settings || new Settings();
+    this.api = options.api;
     this.notifiedForOrder = {};
     this.currentAssignedDriver = null;
   }
@@ -157,42 +159,86 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
 
         this.clearPreviousDriver();
 
-        firebaseDB.config().ref(`users/${c.userKey}/pendingOrder`).set(order.orderKey)
-          .then(() => {
-            console.log(`[NOTIFY] Set pendingOrder=${order.orderKey} on driver ${c.userKey}`);
-          })
-          .catch((e) => {
-            console.error(`[NOTIFY] Error setting pendingOrder on ${c.userKey}:`, e);
-          });
+        // Build notification content
+        const fare = order.state.calculatedFare || {};
+        const fareDisplay = fare.totalFare
+          ? `~${fare.currencySymbol || 'LKR '}${fare.totalFare}`
+          : `~${order.state.price || '0'}`;
+        const tripDistance = fare.distanceKm ? `${fare.distanceKm} km` : 'N/A';
 
-        order.setState({ assignedDriver: c.userKey });
-        order.save(() => {
-          console.log(`[NOTIFY] Order ${this.orderKey} assignedDriver=${c.userKey} saved`);
+        const lines = [];
+        lines.push('\u{1F514} New Trip Request');
+        lines.push('');
+        lines.push(`Rider ${c.distance.toFixed(2)} km away`);
+        lines.push(`Estimated distance: ${tripDistance}`);
+        lines.push(`Estimated fare: ${fareDisplay}`);
+        if (order.state.rideNum) lines.push(`Ride #${order.state.rideNum}`);
+
+        // Create accept callback data
+        const acceptGuid = `accept_${order.orderKey}_${Date.now()}`;
+        const acceptResponse = {
+          type: 'call-action',
+          userKey: c.userKey,
+          route: 'driver-accept-ride',
+          arg: {
+            passengerKey: order.state.passengerKey || null,
+            passengerName: order.state.passengerName || null,
+            passengerPhone: order.state.passengerPhone || null,
+            passengerUsername: order.state.passengerUsername || null,
+            orderKey: order.orderKey,
+            passengerLocation: order.state.passengerLocation || null,
+            destinationLocation: order.state.destinationLocation || null,
+            calculatedFare: fare,
+            passengerDestination: order.state.passengerDestination || null,
+            rideNum: order.state.rideNum || null,
+          },
+        };
+
+        const inlineValuesUpdate = {};
+        inlineValuesUpdate[acceptGuid] = acceptResponse;
+        const mergedInlineValues = new HistoryHash(user.state.inlineValues).merge(inlineValuesUpdate);
+
+        // Save inlineValues and pendingOrder directly on driver
+        user.setState({
+          inlineValues: mergedInlineValues,
+          pendingOrder: order.orderKey,
         });
 
-        this.currentAssignedDriver = c.userKey;
-        this.notifiedForOrder[c.userKey] = true;
+        user.save(() => {
+          console.log(`[NOTIFY] Saved inlineValues + pendingOrder on driver ${c.userKey}`);
 
-        const queue = new CaQueue();
-        const arg = {
-          orderKey: order.orderKey,
-          distance: c.distance,
-          from: order.state.passengerLocation,
-          to: order.state.passengerDestination,
-          price: order.state.price,
-          passengerKey: order.state.passengerKey,
-          passengerName: order.state.passengerName || null,
-          passengerUsername: order.state.passengerUsername || null,
-          passengerPhone: order.state.passengerPhone || null,
-          calculatedFare: order.state.calculatedFare || null,
-          destinationLocation: order.state.destinationLocation || null,
-          rideNum: order.state.rideNum || null,
-        };
-        console.log(`[NOTIFY] Enqueueing driver-order-new for driver ${c.userKey}, orderKey=${order.orderKey}`);
-        queue.create({ userKey: c.userKey, arg, route: 'driver-order-new' });
+          order.setState({ assignedDriver: c.userKey });
+          order.save(() => {
+            console.log(`[NOTIFY] Order ${this.orderKey} assignedDriver=${c.userKey} saved`);
+          });
 
-        order.markNotified(c.userKey);
-        order.save();
+          this.currentAssignedDriver = c.userKey;
+          this.notifiedForOrder[c.userKey] = true;
+
+          // Send direct Telegram notification (primary method)
+          if (this.api && typeof this.api.sendMessage === 'function') {
+            const chatId = user.platformId;
+            console.log(`[NOTIFY] Sending direct Telegram message to chatId=${chatId} for driver ${c.userKey}`);
+            this.api.sendMessage(chatId, lines.join('\n'), {
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: '\u{1F7E1} Accept', callback_data: acceptGuid },
+                ]],
+              },
+              disable_notification: false,
+            }).then(() => {
+              console.log(`[NOTIFY] \u2705 Direct notification SENT to driver ${c.userKey} (chatId=${chatId})`);
+            }).catch((err) => {
+              console.error(`[NOTIFY] \u274C Direct notification FAILED for ${c.userKey}:`, err.message || err);
+              // Fallback: try queue-based notification
+              this.enqueueFallbackNotification(c, order);
+            });
+          } else {
+            console.log(`[NOTIFY] No API available, using queue fallback for ${c.userKey}`);
+            this.enqueueFallbackNotification(c, order);
+          }
+        });
+
       }).catch((err) => {
         console.error(`[NOTIFY] Error loading user ${c.userKey}:`, err);
         this.tryNotifyFromList(candidates, index + 1);
@@ -200,6 +246,26 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
     }).catch((err) => {
       console.error(`[NOTIFY] Error reloading order ${this.orderKey}:`, err);
     });
+  }
+
+  enqueueFallbackNotification(c, order) {
+    const queue = new CaQueue();
+    const arg = {
+      orderKey: order.orderKey,
+      distance: c.distance,
+      from: order.state.passengerLocation,
+      to: order.state.passengerDestination,
+      price: order.state.price,
+      passengerKey: order.state.passengerKey,
+      passengerName: order.state.passengerName || null,
+      passengerUsername: order.state.passengerUsername || null,
+      passengerPhone: order.state.passengerPhone || null,
+      calculatedFare: order.state.calculatedFare || null,
+      destinationLocation: order.state.destinationLocation || null,
+      rideNum: order.state.rideNum || null,
+    };
+    console.log(`[NOTIFY] Enqueueing fallback driver-order-new for ${c.userKey}`);
+    queue.create({ userKey: c.userKey, arg, route: 'driver-order-new' });
   }
 
   getSkipReason(user, order, candidate) {
@@ -212,7 +278,9 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
     if (user.state.blocked) {
       return 'driver is blocked';
     }
-    if (user.state.vehicleType !== order.state.requestedVehicleType) {
+    // Only filter by vehicleType if BOTH driver and order have it set
+    if (user.state.vehicleType && order.state.requestedVehicleType &&
+        user.state.vehicleType !== order.state.requestedVehicleType) {
       return `vehicleType mismatch (driver=${user.state.vehicleType}, requested=${order.state.requestedVehicleType})`;
     }
     if (user.state.menuLocation !== 'driver-index') {
@@ -222,6 +290,11 @@ export default class NotifyDriversResponseHandler extends ResponseHandler {
       return `trip in progress (tripStatus=${user.state.tripStatus})`;
     }
     if (user.state.pendingOrder) {
+      // Auto-clean stale pendingOrder: if it matches a previous order that was already notified
+      // by this handler, allow re-notification
+      if (this.notifiedForOrder[candidate.userKey]) {
+        return `already notified for this order cycle`;
+      }
       return `has pending order (pendingOrder=${user.state.pendingOrder})`;
     }
     const driverRadius = user.state.radius;
