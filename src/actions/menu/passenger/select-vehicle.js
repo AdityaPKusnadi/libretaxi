@@ -42,7 +42,6 @@ export default class PassengerSelectVehicle extends Action {
     }
     return new CompositeResponse()
       .add(new UserStateResponse({ requestedVehicleType: value }))
-      .add(new TextResponse({ message: `\u2705 ${vehicle.emoji} ${vehicle.name} selected!` }))
       .add(new RedirectResponse({ path: 'passenger-request-location' }));
   }
 }

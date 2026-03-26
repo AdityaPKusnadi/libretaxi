@@ -31,7 +31,6 @@ export default class PassengerIndex extends Action {
   get() {
     return new CompositeResponse()
       .add(new UserStateResponse({ pendingSearchResults: null }))
-      .add(new TextResponse({ message: '\u{1F695} Where would you like to go?\n\nFirst, choose your vehicle type.' }))
       .add(new RedirectResponse({ path: 'passenger-select-vehicle' }));
   }
 

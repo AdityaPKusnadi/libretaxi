@@ -48,7 +48,6 @@ export default class SelectUserType extends Action {
         ok: this.user.state.phone
           ? new CompositeResponse()
               .add(new UserStateResponse({ userType: 'passenger' }))
-              .add(new TextResponse({ message: '\u{1F44C} We\'re all set, you\'re good to order a ride now!' }))
               .add(new RedirectResponse({ path: 'passenger-index' }))
           : new CompositeResponse()
               .add(new UserStateResponse({ userType: 'passenger' }))
