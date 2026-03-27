@@ -25,7 +25,10 @@ export default class DriverEndTrip extends Action {
     const tripStarted = !!this.user.state.tripStartedAt;
     const vehicleType = (order.requestedVehicleType || this.user.state.vehicleType || 'car');
 
-    log.debug(`END_TRIP: driver=${this.user.userKey}, started=${tripStarted}, startGPS=[${startLocation}], endGPS=[${endLocation}], vehicle=${vehicleType}`);
+    const trackedDistance = this.user.state.tripTrackedDistance || 0;
+    const lastLocation = this.user.state.tripLastLocation;
+
+    log.debug(`END_TRIP: driver=${this.user.userKey}, started=${tripStarted}, startGPS=[${startLocation}], endGPS=[${endLocation}], vehicle=${vehicleType}, tracked=${trackedDistance} km`);
 
     if (!tripStarted || !startLocation || !endLocation) {
       log.debug('END_TRIP: missing data, using fallback 0 km');
@@ -33,6 +36,18 @@ export default class DriverEndTrip extends Action {
       return this._buildResponse(order, 0, fallbackFare, vehicleType);
     }
 
+    // If we have live-tracked distance, add the final segment and use cumulative distance
+    if (trackedDistance > 0 && lastLocation) {
+      const lastSegment = calculateDistance(lastLocation, endLocation);
+      const lastSegmentKm = lastSegment.km || 0;
+      const totalKm = Math.round((trackedDistance + lastSegmentKm) * 100) / 100;
+      log.debug(`END_TRIP: using tracked distance = ${trackedDistance} + last segment ${lastSegmentKm} = ${totalKm} km`);
+      const finalFare = calculateFareFromDistance(totalKm, vehicleType);
+      return this._buildResponse(order, totalKm, finalFare, vehicleType);
+    }
+
+    // Fallback: no live tracking data, use OSRM road distance between start and end
+    log.debug('END_TRIP: no live tracking data, using OSRM start→end distance');
     return new PromiseResponse({
       promise: calculateRoadDistance(startLocation, endLocation),
       cb: (dist) => {
@@ -108,6 +123,8 @@ export default class DriverEndTrip extends Action {
       tripStartLocation: null,
       tripEndLocation: null,
       tripStartedAt: null,
+      tripTrackedDistance: null,
+      tripLastLocation: null,
       passengerProceeded: null,
       driverKey: null,
       pendingOrder: null,

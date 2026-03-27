@@ -13,6 +13,7 @@ import { loadFareConfigFromOracle, loadRadiusFromOracle } from './fare/fare-conf
 import firebaseDB from './firebase-db';
 import GeoFire from 'geofire';
 import Order from './order';
+import calculateDistance from './fare/distance-calculator';
 
 const settings = new Settings();
 const api = new TelegramBot(settings.TELEGRAM_TOKEN, {
@@ -218,6 +219,10 @@ api.on('message', (msg) => {
         driverKey: null,
         driverPhone: null,
         pendingOrder: null,
+        tripTrackedDistance: null,
+        tripLastLocation: null,
+        tripStartLocation: null,
+        tripEndLocation: null,
         menuLocation: 'select-user-type',
       });
 
@@ -242,6 +247,36 @@ api.on('message', (msg) => {
       },
       route: 'update-identity',
     });
+  });
+});
+
+api.on('edited_message', (msg) => {
+  if (!msg.location) return;
+  if (msg.chat.type !== 'private') return;
+
+  const userKey = `telegram_${msg.chat.id}`;
+  const location = [msg.location.latitude, msg.location.longitude];
+
+  withUser(userKey, (user) => {
+    if (user.state.tripStatus !== 'in_progress') return;
+    if (!user.state.tripLastLocation) return;
+
+    const lastLoc = user.state.tripLastLocation;
+    const segment = calculateDistance(lastLoc, location);
+    const segmentKm = segment.km || 0;
+
+    // Ignore GPS jitter (less than 10 meters)
+    if (segmentKm < 0.01) return;
+
+    const newTracked = Math.round(((user.state.tripTrackedDistance || 0) + segmentKm) * 100) / 100;
+
+    user.setState({
+      tripTrackedDistance: newTracked,
+      tripLastLocation: location,
+    });
+    user.save();
+
+    console.log(`[LIVE-GPS] ${userKey}: +${segmentKm.toFixed(3)} km, total=${newTracked.toFixed(2)} km`);
   });
 });
 

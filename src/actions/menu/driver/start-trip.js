@@ -85,6 +85,8 @@ export default class DriverStartTrip extends Action {
         tripStartedAt: Firebase.database.ServerValue.TIMESTAMP,
         tripStartLocation: location,
         tripEndLocation: null,
+        tripTrackedDistance: 0,
+        tripLastLocation: location,
       }))
       .add(new TextResponse({
         message: `\u{1F7E2} Trip #${rideNum} started!\n\nWhen you arrive at the destination, tap END TRIP to share your location and complete the trip.`,
