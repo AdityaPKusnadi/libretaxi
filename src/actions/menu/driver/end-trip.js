@@ -28,6 +28,10 @@ export default class DriverEndTrip extends Action {
     const trackedDistance = this.user.state.tripTrackedDistance || 0;
     const lastLocation = this.user.state.tripLastLocation;
 
+    // Correction factor: straight-line (Haversine) to approximate road distance
+    // Urban areas typically have 1.3-1.5x circuity; 1.4 is a reasonable default
+    const ROAD_FACTOR = 1.4;
+
     log.debug(`END_TRIP: driver=${this.user.userKey}, started=${tripStarted}, startGPS=[${startLocation}], endGPS=[${endLocation}], vehicle=${vehicleType}, tracked=${trackedDistance} km`);
 
     if (!tripStarted || !startLocation || !endLocation) {
@@ -36,32 +40,55 @@ export default class DriverEndTrip extends Action {
       return this._buildResponse(order, 0, fallbackFare, vehicleType);
     }
 
-    // If we have live-tracked distance, add the final segment and use cumulative distance
+    // Calculate total tracked distance including final segment from last point to end
+    let totalTrackedKm = trackedDistance;
     if (trackedDistance > 0 && lastLocation) {
       const lastSegment = calculateDistance(lastLocation, endLocation);
       const lastSegmentKm = lastSegment.km || 0;
-      const totalKm = Math.round((trackedDistance + lastSegmentKm) * 100) / 100;
-      log.debug(`END_TRIP: using tracked distance = ${trackedDistance} + last segment ${lastSegmentKm} = ${totalKm} km`);
-      const finalFare = calculateFareFromDistance(totalKm, vehicleType);
-      return this._buildResponse(order, totalKm, finalFare, vehicleType);
+      if (lastSegmentKm > 0) {
+        totalTrackedKm = Math.round((trackedDistance + lastSegmentKm) * 100) / 100;
+      }
     }
+    log.debug(`END_TRIP: totalTrackedKm=${totalTrackedKm}`);
 
-    // Fallback: no live tracking data, use OSRM road distance between start and end
-    log.debug('END_TRIP: no live tracking data, using OSRM start→end distance');
+    // Always query OSRM for road distance, then pick the best result
     return new PromiseResponse({
       promise: calculateRoadDistance(startLocation, endLocation),
       cb: (dist) => {
-        const distanceKm = dist.km || 0;
-        log.debug(`END_TRIP: road distance = ${distanceKm} km (estimate=${dist.isEstimate || false})`);
-        const finalFare = calculateFareFromDistance(distanceKm, vehicleType);
-        return this._buildResponse(order, distanceKm, finalFare, vehicleType);
+        let roadKm = dist.km || 0;
+        const isEstimate = dist.isEstimate || false;
+
+        if (isEstimate) {
+          // OSRM failed — got Haversine fallback, apply road correction factor
+          const correctedKm = Math.round(roadKm * ROAD_FACTOR * 100) / 100;
+          log.debug(`END_TRIP: OSRM failed, Haversine=${roadKm} km × ${ROAD_FACTOR} = ${correctedKm} km`);
+          roadKm = correctedKm;
+        } else {
+          log.debug(`END_TRIP: OSRM road distance = ${roadKm} km`);
+        }
+
+        // Use the greater of tracked distance or road distance
+        let finalKm;
+        if (totalTrackedKm > 0) {
+          finalKm = Math.max(totalTrackedKm, roadKm);
+          log.debug(`END_TRIP: tracked=${totalTrackedKm} km, road=${roadKm} km, using MAX = ${finalKm} km`);
+        } else {
+          finalKm = roadKm;
+          log.debug(`END_TRIP: no tracking data, using road distance = ${finalKm} km`);
+        }
+
+        const finalFare = calculateFareFromDistance(finalKm, vehicleType);
+        return this._buildResponse(order, finalKm, finalFare, vehicleType);
       },
       errCb: (err) => {
-        log.debug(`END_TRIP: OSRM promise failed (${err.message}), using Haversine fallback`);
+        // calculateRoadDistance normally never rejects (catches internally), but just in case
+        log.debug(`END_TRIP: road distance error (${err.message}), using Haversine × ${ROAD_FACTOR}`);
         const fallback = calculateDistance(startLocation, endLocation);
-        const distanceKm = fallback.km || 0;
-        const finalFare = calculateFareFromDistance(distanceKm, vehicleType);
-        return this._buildResponse(order, distanceKm, finalFare, vehicleType);
+        const correctedKm = Math.round((fallback.km || 0) * ROAD_FACTOR * 100) / 100;
+        const finalKm = totalTrackedKm > 0 ? Math.max(totalTrackedKm, correctedKm) : correctedKm;
+        log.debug(`END_TRIP: Haversine=${fallback.km} km, corrected=${correctedKm} km, final=${finalKm} km`);
+        const finalFare = calculateFareFromDistance(finalKm, vehicleType);
+        return this._buildResponse(order, finalKm, finalFare, vehicleType);
       },
     });
   }

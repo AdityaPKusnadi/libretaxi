@@ -7,6 +7,7 @@ import RequestLocationResponse from '../../../responses/request-location-respons
 import CallActionResponse from '../../../responses/call-action-response';
 import Firebase from 'firebase-admin';
 import Order from '../../../order';
+import calculateDistance from '../../../fare/distance-calculator';
 import log from '../../../log';
 
 export default class DriverStartTrip extends Action {
@@ -89,7 +90,7 @@ export default class DriverStartTrip extends Action {
         tripLastLocation: location,
       }))
       .add(new TextResponse({
-        message: `\u{1F7E2} Trip #${rideNum} started!\n\nWhen you arrive at the destination, tap END TRIP to share your location and complete the trip.`,
+        message: `\u{1F7E2} Trip #${rideNum} started!\n\nWhen you arrive at the destination, tap END TRIP to share your location and complete the trip.\n\n\u{1F4CD} For accurate distance: tap \u{1F4CE} \u2192 Location \u2192 Share My Live Location for 1 hour.`,
       }))
       .add(new RequestLocationResponse({
         buttonText: '\u{1F534} End Trip',
@@ -99,10 +100,27 @@ export default class DriverStartTrip extends Action {
   }
 
   _handleEndLocation(location) {
-    log.debug(`END_TRIP_LOCATION: driver=${this.user.userKey}, end_GPS=[${location}], start_GPS=[${this.user.state.tripStartLocation}]`);
+    // Accumulate distance from last tracked point to end location
+    const lastLoc = this.user.state.tripLastLocation || this.user.state.tripStartLocation;
+    const currentTracked = this.user.state.tripTrackedDistance || 0;
+    let newTracked = currentTracked;
+
+    if (lastLoc) {
+      const segment = calculateDistance(lastLoc, location);
+      const segmentKm = segment.km || 0;
+      if (segmentKm >= 0.01) {
+        newTracked = Math.round((currentTracked + segmentKm) * 100) / 100;
+      }
+    }
+
+    log.debug(`END_TRIP_LOCATION: driver=${this.user.userKey}, end_GPS=[${location}], start_GPS=[${this.user.state.tripStartLocation}], accumulated=${newTracked} km`);
 
     return new CompositeResponse()
-      .add(new UserStateResponse({ tripEndLocation: location }))
+      .add(new UserStateResponse({
+        tripEndLocation: location,
+        tripTrackedDistance: newTracked,
+        tripLastLocation: location,
+      }))
       .add(new RedirectResponse({ path: 'driver-end-trip' }));
   }
 
