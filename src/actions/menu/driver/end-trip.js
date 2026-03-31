@@ -28,8 +28,7 @@ export default class DriverEndTrip extends Action {
     const trackedDistance = this.user.state.tripTrackedDistance || 0;
     const lastLocation = this.user.state.tripLastLocation;
 
-    // Correction factor: straight-line (Haversine) to approximate road distance
-    // Urban areas typically have 1.3-1.5x circuity; 1.4 is a reasonable default
+    // Correction factor for Haversine start-to-end fallback only (not used for tracked distance)
     const ROAD_FACTOR = 1.4;
 
     log.debug(`END_TRIP: driver=${this.user.userKey}, started=${tripStarted}, startGPS=[${startLocation}], endGPS=[${endLocation}], vehicle=${vehicleType}, tracked=${trackedDistance} km`);
@@ -51,7 +50,17 @@ export default class DriverEndTrip extends Action {
     }
     log.debug(`END_TRIP: totalTrackedKm=${totalTrackedKm}`);
 
-    // Always query OSRM for road distance, then pick the best result
+    // LIVE GPS-BASED FARE: Use tracked distance as primary source
+    if (totalTrackedKm > 0) {
+      // GPS tracking is available — use accumulated live distance directly
+      // Short Haversine segments naturally follow the road, so no road factor needed
+      log.debug(`END_TRIP: using LIVE GPS tracked distance = ${totalTrackedKm} km (primary)`);
+      const finalFare = calculateFareFromDistance(totalTrackedKm, vehicleType);
+      return this._buildResponse(order, totalTrackedKm, finalFare, vehicleType);
+    }
+
+    // FALLBACK ONLY: No live GPS data — query OSRM for start-to-end distance
+    log.debug('END_TRIP: no live GPS tracking data, falling back to OSRM start-to-end');
     return new PromiseResponse({
       promise: calculateRoadDistance(startLocation, endLocation),
       cb: (dist) => {
@@ -59,7 +68,6 @@ export default class DriverEndTrip extends Action {
         const isEstimate = dist.isEstimate || false;
 
         if (isEstimate) {
-          // OSRM failed — got Haversine fallback, apply road correction factor
           const correctedKm = Math.round(roadKm * ROAD_FACTOR * 100) / 100;
           log.debug(`END_TRIP: OSRM failed, Haversine=${roadKm} km × ${ROAD_FACTOR} = ${correctedKm} km`);
           roadKm = correctedKm;
@@ -67,28 +75,16 @@ export default class DriverEndTrip extends Action {
           log.debug(`END_TRIP: OSRM road distance = ${roadKm} km`);
         }
 
-        // Use the greater of tracked distance or road distance
-        let finalKm;
-        if (totalTrackedKm > 0) {
-          finalKm = Math.max(totalTrackedKm, roadKm);
-          log.debug(`END_TRIP: tracked=${totalTrackedKm} km, road=${roadKm} km, using MAX = ${finalKm} km`);
-        } else {
-          finalKm = roadKm;
-          log.debug(`END_TRIP: no tracking data, using road distance = ${finalKm} km`);
-        }
-
-        const finalFare = calculateFareFromDistance(finalKm, vehicleType);
-        return this._buildResponse(order, finalKm, finalFare, vehicleType);
+        const finalFare = calculateFareFromDistance(roadKm, vehicleType);
+        return this._buildResponse(order, roadKm, finalFare, vehicleType);
       },
       errCb: (err) => {
-        // calculateRoadDistance normally never rejects (catches internally), but just in case
         log.debug(`END_TRIP: road distance error (${err.message}), using Haversine × ${ROAD_FACTOR}`);
         const fallback = calculateDistance(startLocation, endLocation);
         const correctedKm = Math.round((fallback.km || 0) * ROAD_FACTOR * 100) / 100;
-        const finalKm = totalTrackedKm > 0 ? Math.max(totalTrackedKm, correctedKm) : correctedKm;
-        log.debug(`END_TRIP: Haversine=${fallback.km} km, corrected=${correctedKm} km, final=${finalKm} km`);
-        const finalFare = calculateFareFromDistance(finalKm, vehicleType);
-        return this._buildResponse(order, finalKm, finalFare, vehicleType);
+        log.debug(`END_TRIP: Haversine=${fallback.km} km, corrected=${correctedKm} km`);
+        const finalFare = calculateFareFromDistance(correctedKm, vehicleType);
+        return this._buildResponse(order, correctedKm, finalFare, vehicleType);
       },
     });
   }
@@ -152,6 +148,7 @@ export default class DriverEndTrip extends Action {
       tripStartedAt: null,
       tripTrackedDistance: null,
       tripLastLocation: null,
+      tripLiveFare: null,
       passengerProceeded: null,
       driverKey: null,
       pendingOrder: null,

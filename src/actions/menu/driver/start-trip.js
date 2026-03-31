@@ -88,9 +88,10 @@ export default class DriverStartTrip extends Action {
         tripEndLocation: null,
         tripTrackedDistance: 0,
         tripLastLocation: location,
+        tripLiveFare: 0,
       }))
       .add(new TextResponse({
-        message: `\u{1F7E2} Trip #${rideNum} started!\n\nWhen you arrive at the destination, tap END TRIP to share your location and complete the trip.\n\n\u{1F4CD} For accurate distance: tap \u{1F4CE} \u2192 Location \u2192 Share My Live Location for 1 hour.`,
+        message: `\u{1F7E2} Trip #${rideNum} started!\n\n\u{1F4CD} Live GPS fare tracking is active.\nShare your live location for accurate distance & fare.\n\nTap \u{1F4CE} \u2192 Location \u2192 Share My Live Location for 1 hour.\n\nWhen you arrive, tap END TRIP to complete.`,
       }))
       .add(new RequestLocationResponse({
         buttonText: '\u{1F534} End Trip',

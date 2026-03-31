@@ -14,6 +14,7 @@ import firebaseDB from './firebase-db';
 import GeoFire from 'geofire';
 import Order from './order';
 import calculateDistance from './fare/distance-calculator';
+import { calculateFareFromDistance } from './fare/distance-calculator';
 
 const settings = new Settings();
 const api = new TelegramBot(settings.TELEGRAM_TOKEN, {
@@ -268,15 +269,41 @@ api.on('edited_message', (msg) => {
     // Ignore GPS jitter (less than 10 meters)
     if (segmentKm < 0.01) return;
 
-    const newTracked = Math.round(((user.state.tripTrackedDistance || 0) + segmentKm) * 100) / 100;
+    const prevTracked = user.state.tripTrackedDistance || 0;
+    const newTracked = Math.round((prevTracked + segmentKm) * 100) / 100;
+    const vehicleType = (user.state.currentOrder && user.state.currentOrder.requestedVehicleType)
+      || user.state.vehicleType || 'car';
+    const liveFare = calculateFareFromDistance(newTracked, vehicleType);
 
     user.setState({
       tripTrackedDistance: newTracked,
       tripLastLocation: location,
+      tripLiveFare: liveFare.totalFare,
     });
     user.save();
 
-    console.log(`[LIVE-GPS] ${userKey}: +${segmentKm.toFixed(3)} km, total=${newTracked.toFixed(2)} km`);
+    console.log(`[LIVE-GPS] ${userKey}: +${segmentKm.toFixed(3)} km, total=${newTracked.toFixed(2)} km, fare=${liveFare.totalFare}`);
+
+    // Send live fare update every ~0.5 km
+    const prevMilestone = Math.floor(prevTracked * 2);
+    const newMilestone = Math.floor(newTracked * 2);
+    if (newMilestone > prevMilestone) {
+      const chatId = msg.chat.id;
+      const rideNum = (user.state.currentOrder && user.state.currentOrder.rideNum) || '##';
+      const fareMsg = [
+        `\u{1F4CD} Live Trip #${rideNum} Update`,
+        `\u{1F4CF} Distance: ${newTracked} km`,
+        `\u{1F4B0} Current Fare: ${liveFare.currencySymbol}${liveFare.totalFare}`,
+      ].join('\n');
+      api.sendMessage(chatId, fareMsg, { disable_notification: true }).catch(() => {});
+
+      // Also notify passenger
+      const passengerKey = user.state.currentOrder && user.state.currentOrder.passengerKey;
+      if (passengerKey) {
+        const passengerChatId = passengerKey.replace('telegram_', '');
+        api.sendMessage(passengerChatId, fareMsg, { disable_notification: true }).catch(() => {});
+      }
+    }
   });
 });
 
